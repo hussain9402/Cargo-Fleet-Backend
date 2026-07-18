@@ -1,0 +1,180 @@
+"use client";
+
+import type { UserRole } from '@/app/lib/rbac/permissions';
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole | null;
+  roles: UserRole[];
+  companyId: string | null;
+  company: { id: string; name: string; status: 'active' | 'suspended' } | null;
+};
+
+export type Company = { id: string; name: string; status: 'active' | 'suspended' };
+
+export type ManagedUser = {
+  id: string;
+  name: string;
+  email: string;
+  status: 'active' | 'suspended';
+  companyId: string | null;
+  companyName: string | null;
+  role: UserRole | null;
+  roles: UserRole[];
+  createdAt: string;
+};
+
+export type ScopeSettings = {
+  scope: string;
+  timezone: string;
+  locale: string;
+  theme: 'system' | 'light' | 'dark';
+  weeklyReport: boolean;
+  itemsPerPage: number;
+  smtpHost: string | null;
+  smtpPort: number | null;
+  smtpSecure: boolean;
+  smtpUser: string | null;
+  smtpFrom: string | null;
+  smtpFromName: string | null;
+  smtpPasswordSet: boolean;
+  updatedAt: string | null;
+};
+
+export type Broadcast = {
+  id: string;
+  scope: string;
+  title: string;
+  body: string;
+  audience: string;
+  createdBy: string | null;
+  createdAt: string;
+};
+
+export type ContactMessage = {
+  id: string;
+  companyId: string | null;
+  companyName: string | null;
+  userId: string | null;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: 'open' | 'resolved';
+  createdAt: string;
+};
+
+export type RoleInfo = {
+  role: UserRole;
+  permissions: string[];
+  userCount: number;
+};
+
+export type DashboardSummary = {
+  vehicles: { total: number; moving: number; idle: number; maintenance: number };
+  drivers: { total: number; onTrip: number; resting: number; offDuty: number };
+  trips: { total: number; inTransit: number; scheduled: number; delayed: number; completed: number };
+  fleetHealth: number;
+};
+
+const TOKEN_KEY = 'cf_admin_access';
+const REFRESH_KEY = 'cf_admin_refresh';
+const USER_KEY = 'cf_admin_user';
+
+export function getToken() {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+export function getStoredUser(): AdminUser | null {
+  if (typeof window === 'undefined') return null;
+  const raw = window.localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AdminUser;
+  } catch {
+    return null;
+  }
+}
+
+function setSession(user: AdminUser, accessToken: string, refreshToken: string) {
+  window.localStorage.setItem(TOKEN_KEY, accessToken);
+  window.localStorage.setItem(REFRESH_KEY, refreshToken);
+  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function updateStoredUser(user: AdminUser) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function clearSession() {
+  window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(REFRESH_KEY);
+  window.localStorage.removeItem(USER_KEY);
+}
+
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`/api/v1${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers as Record<string, string> | undefined),
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError((data as { error?: string }).error ?? 'Request failed', res.status);
+  }
+  return data as T;
+}
+
+export async function login(email: string, password: string) {
+  const res = await fetch('/api/v1/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError((data as { error?: string }).error ?? 'Login failed', res.status);
+  }
+  setSession(data.user, data.accessToken, data.refreshToken);
+  return data.user as AdminUser;
+}
+
+export async function logout() {
+  const refreshToken = typeof window !== 'undefined' ? window.localStorage.getItem(REFRESH_KEY) : null;
+  try {
+    if (refreshToken) {
+      await fetch('/api/v1/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+    }
+  } catch {
+    // ignore
+  }
+  clearSession();
+}
+
+export function roleLabel(role: UserRole | null): string {
+  if (!role) return '—';
+  return role
+    .split('_')
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(' ');
+}

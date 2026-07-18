@@ -1,9 +1,18 @@
 import { z } from 'zod';
+import { ROLES } from '../rbac/permissions';
+
+const roleEnum = z.enum(ROLES);
 
 export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   fullName: z.string().min(2).max(120),
+  /** New company name — when provided the user becomes that company's owner. */
+  companyName: z.string().min(2).max(160).optional(),
+  /** Join an existing company by id (e.g. invited driver/customer). */
+  companyId: z.string().uuid().optional(),
+  /** Requested role at signup. Defaults applied server-side. */
+  role: roleEnum.optional(),
 });
 
 export const loginSchema = z.object({
@@ -16,7 +25,7 @@ export const refreshSchema = z.object({
 });
 
 export const roleSchema = z.object({
-  role: z.enum(['manager', 'dispatcher', 'driver']),
+  role: roleEnum,
 });
 
 export const forgotPasswordSchema = z.object({

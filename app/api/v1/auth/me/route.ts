@@ -3,6 +3,7 @@ import { getAuthPayload } from '@/app/lib/auth/request';
 import { errorResponse, jsonResponse, optionsResponse, parseJsonBody } from '@/app/lib/auth/response';
 import { roleSchema } from '@/app/lib/auth/validation';
 import { ensureAuthTables, findUserById, toAuthUser, updateUserRole } from '@/app/lib/auth/users';
+import { getClientIp, writeAudit } from '@/app/lib/rbac/audit';
 
 export async function OPTIONS() {
   return optionsResponse();
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
       return errorResponse('Unauthorized', 401);
     }
 
-    return jsonResponse({ user: toAuthUser(user) });
+    return jsonResponse({ user: await toAuthUser(user) });
   } catch (error) {
     console.error('Me error:', error);
     return errorResponse('Unable to fetch profile', 500);
@@ -43,6 +44,16 @@ export async function PATCH(request: NextRequest) {
     }
 
     const user = await updateUserRole(payload.sub as string, parsed.data.role);
+
+    await writeAudit({
+      companyId: user.companyId,
+      userId: user.id,
+      action: 'role.change',
+      resource: `user:${user.id}`,
+      ip: getClientIp(request),
+      detail: { role: parsed.data.role },
+    });
+
     return jsonResponse({ user });
   } catch (error) {
     console.error('Role update error:', error);

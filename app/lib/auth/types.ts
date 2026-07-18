@@ -1,10 +1,24 @@
-export type UserRole = 'manager' | 'dispatcher' | 'driver';
+import type { UserRole } from '../rbac/permissions';
+
+export type { UserRole };
+
+export type Company = {
+  id: string;
+  name: string;
+  status: 'active' | 'suspended';
+};
 
 export type AuthUser = {
   id: string;
   email: string;
   name: string;
+  /** Active / primary role for the current session */
   role: UserRole | null;
+  /** All roles assigned to this user */
+  roles: UserRole[];
+  /** Tenant the user belongs to (null for platform-level roles like super_admin) */
+  companyId: string | null;
+  company: Company | null;
 };
 
 export type AuthTokens = {
@@ -23,8 +37,38 @@ export type DbUser = {
   name: string;
   email: string;
   password: string | null;
-  role: UserRole | null;
   google_id: string | null;
+  company_id: string | null;
+  status: 'active' | 'suspended';
+  created_at: Date;
+  updated_at: Date;
+};
+
+/** A user as shown in admin management lists. */
+export type ManagedUser = {
+  id: string;
+  name: string;
+  email: string;
+  status: 'active' | 'suspended';
+  companyId: string | null;
+  companyName: string | null;
+  role: UserRole | null;
+  roles: UserRole[];
+  createdAt: Date;
+};
+
+export type DbUserRole = {
+  id: string;
+  user_id: string;
+  role: UserRole;
+  is_primary: number;
+  created_at: Date;
+};
+
+export type DbCompany = {
+  id: string;
+  name: string;
+  status: 'active' | 'suspended';
   created_at: Date;
   updated_at: Date;
 };
