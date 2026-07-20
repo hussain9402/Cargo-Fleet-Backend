@@ -41,23 +41,33 @@ export async function getPublicIp() {
   }
 }
 
-export function buildHealthUrls(port = getServerPort()) {
-  const localhost = `http://localhost:${port}/api/health`;
-  const network = getLocalNetworkIps().map((ip) => `http://${ip}:${port}/api/health`);
+function buildPathUrls(port: number, path: string) {
+  const localhost = `http://localhost:${port}${path}`;
+  const network = getLocalNetworkIps().map((ip) => `http://${ip}:${port}${path}`);
+  return { localhost, network };
+}
 
-  return {
-    localhost,
-    network,
-  };
+export function buildHealthUrls(port = getServerPort()) {
+  return buildPathUrls(port, '/api/health');
+}
+
+export function buildAdminUrls(port = getServerPort()) {
+  return buildPathUrls(port, '/admin/login');
 }
 
 export async function buildHealthUrlsWithPublic(port = getServerPort()) {
   const base = buildHealthUrls(port);
+  const admin = buildAdminUrls(port);
   const publicIp = await getPublicIp();
 
   return {
     ...base,
     public: publicIp ? `http://${publicIp}:${port}/api/health` : null,
     publicIp,
+    admin: {
+      localhost: admin.localhost,
+      network: admin.network,
+      public: publicIp ? `http://${publicIp}:${port}/admin/login` : null,
+    },
   };
 }

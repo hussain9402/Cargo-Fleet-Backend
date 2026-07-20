@@ -38,7 +38,7 @@ function Notice({ message }: { message: string }) {
 /* ------------------------------------------------------------------ */
 
 const ROLE_META: Record<string, { icon: string; desc: string; chip: string; ring: string }> = {
-  super_admin: { icon: '👑', desc: 'Full control across the entire platform', chip: 'bg-brand-500/15 text-brand-300', ring: 'ring-brand-500/20' },
+  super_admin: { icon: '👑', desc: 'Full control across the entire platform', chip: 'bg-brand-600/12 text-brand-300', ring: 'ring-brand-600/20' },
   company_owner: { icon: '🏢', desc: 'Owns and manages the whole company', chip: 'bg-indigo-500/15 text-indigo-300', ring: 'ring-indigo-500/20' },
   fleet_manager: { icon: '🚚', desc: 'Manages vehicles, drivers and trips', chip: 'bg-sky-500/15 text-sky-300', ring: 'ring-sky-500/20' },
   dispatcher: { icon: '🗺️', desc: 'Assigns routes and tracks trips', chip: 'bg-amber-500/15 text-amber-300', ring: 'ring-amber-500/20' },
@@ -133,7 +133,7 @@ export function RolesPanel() {
 
               <div className="mt-4 border-t border-white/[0.06] pt-4">
                 {fullAccess ? (
-                  <div className="flex items-center gap-2 rounded-lg bg-brand-500/10 px-3 py-2.5 text-sm font-medium text-brand-300 ring-1 ring-inset ring-brand-500/20">
+                  <div className="flex items-center gap-2 rounded-lg bg-brand-600/8 px-3 py-2.5 text-sm font-medium text-brand-300 ring-1 ring-inset ring-brand-600/20">
                     <span>✦</span> Full access to every module
                   </div>
                 ) : (
@@ -492,7 +492,7 @@ export function AuditPanel() {
 /* Settings (Preferences / Profile / SMTP)                             */
 /* ------------------------------------------------------------------ */
 
-type SettingsTab = 'preferences' | 'profile' | 'smtp';
+type SettingsTab = 'branding' | 'preferences' | 'profile' | 'smtp';
 
 export function SettingsPanel({
   isPlatform,
@@ -503,7 +503,7 @@ export function SettingsPanel({
   user: AdminUser;
   onUserUpdated: (u: AdminUser) => void;
 }) {
-  const [tab, setTab] = useState<SettingsTab>('preferences');
+  const [tab, setTab] = useState<SettingsTab>(isPlatform ? 'preferences' : 'branding');
   const [settings, setSettings] = useState<ScopeSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -524,6 +524,7 @@ export function SettingsPanel({
   }, []);
 
   const tabs: { key: SettingsTab; label: string }[] = [
+    ...(!isPlatform ? [{ key: 'branding' as const, label: 'Company brand' }] : []),
     { key: 'preferences', label: 'Preferences' },
     { key: 'profile', label: 'Profile' },
     { key: 'smtp', label: 'SMTP / Email' },
@@ -545,7 +546,7 @@ export function SettingsPanel({
             onClick={() => setTab(t.key)}
             className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
               tab === t.key
-                ? 'border-indigo-600 text-indigo-600'
+                ? 'border-brand-600 text-brand-300'
                 : 'border-transparent text-slate-400 hover:text-slate-300'
             }`}
           >
@@ -560,6 +561,9 @@ export function SettingsPanel({
         <ErrorBox message={error} />
       ) : (
         <>
+          {tab === 'branding' && !isPlatform && (
+            <BrandingTab user={user} onUserUpdated={onUserUpdated} />
+          )}
           {tab === 'preferences' && settings && (
             <PreferencesTab settings={settings} onSaved={setSettings} />
           )}
@@ -570,6 +574,130 @@ export function SettingsPanel({
         </>
       )}
     </div>
+  );
+}
+
+function BrandingTab({
+  user,
+  onUserUpdated,
+}: {
+  user: AdminUser;
+  onUserUpdated: (u: AdminUser) => void;
+}) {
+  const [name, setName] = useState(user.company?.name ?? '');
+  const [preview, setPreview] = useState(user.company?.logoUrl ?? null);
+  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!user.companyId || !user.company) {
+    return <ErrorBox message="No company linked to this account." />;
+  }
+
+  async function saveName() {
+    if (!user.companyId) return;
+    setBusy(true);
+    setSaved(false);
+    setError(null);
+    try {
+      const res = await api<{ company: NonNullable<AdminUser['company']> }>(
+        `/companies/${user.companyId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ name: name.trim() }),
+        },
+      );
+      const updated: AdminUser = { ...user, company: res.company };
+      updateStoredUser(updated);
+      onUserUpdated(updated);
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save name');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onLogoPick(file: File | null) {
+    if (!file || !user.companyId) return;
+    setUploading(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const token =
+        typeof window !== 'undefined' ? window.localStorage.getItem('cf_admin_access') : null;
+      const form = new FormData();
+      form.append('logo', file);
+      const res = await fetch(`/api/v1/companies/${user.companyId}/logo`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Upload failed');
+      const company = (data as { company: NonNullable<AdminUser['company']> }).company;
+      setPreview(company.logoUrl);
+      const updated: AdminUser = { ...user, company };
+      updateStoredUser(updated);
+      onUserUpdated(updated);
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to upload logo');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <Card className="max-w-3xl space-y-6 p-6">
+      {saved && <Notice message="Company brand updated. Sidebar, tab title, and emails will use it." />}
+      {error && <ErrorBox message={error} />}
+
+      <div>
+        <h3 className="font-semibold text-slate-100">Company brand</h3>
+        <p className="mt-1 text-sm text-slate-400">
+          Name and logo appear in your admin sidebar, browser tab, and outbound emails for your company.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-6">
+        <div className="flex h-24 w-40 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-brand-950/60 p-3">
+          {preview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview} alt={name || 'Logo'} className="max-h-full max-w-full object-contain" />
+          ) : (
+            <span className="text-xs text-slate-500">No logo yet</span>
+          )}
+        </div>
+        <div className="space-y-2">
+          <label className="inline-flex cursor-pointer items-center rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500">
+            {uploading ? 'Uploading…' : 'Upload logo'}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => onLogoPick(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <p className="text-xs text-slate-500">PNG, JPEG, WebP or SVG · max 2MB</p>
+        </div>
+      </div>
+
+      <Field label="Company display name">
+        <input
+          className={inputClass}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Northline Freight"
+        />
+      </Field>
+
+      <Button onClick={saveName} disabled={busy || !name.trim()}>
+        {busy ? 'Saving…' : 'Save company name'}
+      </Button>
+    </Card>
   );
 }
 
@@ -701,13 +829,16 @@ function ProfileTab({
     setCoBusy(true);
     setCoSaved(false);
     try {
-      await api(`/companies/${user.companyId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ name: companyName.trim() }),
-      });
+      const res = await api<{ company: NonNullable<AdminUser['company']> }>(
+        `/companies/${user.companyId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ name: companyName.trim() }),
+        },
+      );
       const updated: AdminUser = {
         ...user,
-        company: user.company ? { ...user.company, name: companyName.trim() } : null,
+        company: res.company,
       };
       updateStoredUser(updated);
       onUserUpdated(updated);

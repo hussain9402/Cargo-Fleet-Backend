@@ -73,11 +73,11 @@ function Overview({ companies, users }: { companies: Company[]; users: ManagedUs
 
   // Users by role (real data)
   const roleColors: Record<string, string> = {
-    super_admin: '#5F9598',
-    company_owner: '#1D546D',
-    fleet_manager: '#7FB4B7',
+    super_admin: '#1A52C4',
+    company_owner: '#3D6AE8',
+    fleet_manager: '#8FA3EB',
     dispatcher: '#fbbf24',
-    driver_manager: '#9AC4C6',
+    driver_manager: '#C5D0F5',
     maintenance_manager: '#fb7185',
     finance_manager: '#c4b5fd',
     customer_support: '#22d3ee',
@@ -97,7 +97,7 @@ function Overview({ companies, users }: { companies: Company[]; users: ManagedUs
     .slice(0, 6);
 
   const companyStatus = [
-    { label: 'Active', value: active, color: '#5F9598' },
+    { label: 'Active', value: active, color: '#1A52C4' },
     { label: 'Suspended', value: companies.length - active, color: '#fb7185' },
   ];
 
@@ -134,7 +134,7 @@ function Overview({ companies, users }: { companies: Company[]; users: ManagedUs
             </div>
             <Badge tone="blue">{days.reduce((s, d) => s + d.value, 0)} total</Badge>
           </div>
-          <AreaChart data={days.map((d) => d.value)} labels={days.map((d) => d.label)} color="#5F9598" height={170} />
+          <AreaChart data={days.map((d) => d.value)} labels={days.map((d) => d.label)} color="#1A52C4" height={170} />
         </Card>
         <Card className="p-6">
           <h3 className="mb-4 font-semibold text-white">Company status</h3>

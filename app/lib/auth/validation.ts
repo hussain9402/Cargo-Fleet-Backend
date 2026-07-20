@@ -38,6 +38,22 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(6),
 });
 
+export const registerStartSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  fullName: z.string().min(2).max(120),
+  companyName: z.string().min(2).max(160),
+});
+
+export const registerVerifySchema = z.object({
+  email: z.string().email(),
+  code: z.string().length(6),
+});
+
+export const registerResendSchema = z.object({
+  email: z.string().email(),
+});
+
 export const googleAuthSchema = z.object({
   idToken: z.string().min(1),
 });

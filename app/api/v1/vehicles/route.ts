@@ -2,24 +2,33 @@ import { NextRequest } from 'next/server';
 import { errorResponse, jsonResponse, optionsResponse, parseJsonBody } from '@/app/lib/auth/response';
 import { requirePermission } from '@/app/lib/rbac/guard';
 import { getClientIp, writeAudit } from '@/app/lib/rbac/audit';
-import { createVehicle, ensureFleetTables, listVehicles, seedCompanyFleet } from '@/app/lib/fleet/fleet';
+import { canAny } from '@/app/lib/rbac/permissions';
+import {
+  createVehicle,
+  ensureFleetTables,
+  listVehiclesScoped,
+  resolveDataScope,
+} from '@/app/lib/fleet/fleet';
 
 export async function OPTIONS() {
   return optionsResponse();
 }
 
 export async function GET(request: NextRequest) {
-  const guard = await requirePermission(request, 'vehicles:view');
+  const guard = await requirePermission(request);
   if (!guard.ok) return guard.response;
 
-  const { companyId } = guard.context;
+  const { companyId, userId, roles } = guard.context;
+  if (!canAny(roles, ['vehicles:view', 'vehicles:manage', 'tracking:view', 'tracking:own', 'vehicles:maintenance'])) {
+    return errorResponse('Forbidden', 403);
+  }
   if (!companyId) return jsonResponse({ vehicles: [] });
 
   try {
     await ensureFleetTables();
-    await seedCompanyFleet(companyId);
-    const vehicles = await listVehicles(companyId);
-    return jsonResponse({ vehicles });
+    const scope = resolveDataScope(roles);
+    const vehicles = await listVehiclesScoped(companyId, scope, userId);
+    return jsonResponse({ vehicles, scope });
   } catch (error) {
     console.error('List vehicles error:', error);
     return errorResponse('Unable to load vehicles', 500);

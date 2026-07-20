@@ -3,7 +3,13 @@ import { errorResponse, jsonResponse, optionsResponse, parseJsonBody } from '@/a
 import { requirePermission } from '@/app/lib/rbac/guard';
 import { getClientIp, writeAudit } from '@/app/lib/rbac/audit';
 import { can } from '@/app/lib/rbac/permissions';
-import { ensureFleetTables, updateTripStatus, type Trip } from '@/app/lib/fleet/fleet';
+import {
+  ensureFleetTables,
+  findDriverByUserId,
+  getTrip,
+  updateTripStatus,
+  type Trip,
+} from '@/app/lib/fleet/fleet';
 
 const VALID: Trip['status'][] = ['in-transit', 'scheduled', 'completed', 'delayed'];
 
@@ -12,7 +18,6 @@ export async function OPTIONS() {
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  // Dispatchers/fleet managers (trips:manage) or drivers on their own trip (trips:drive).
   const guard = await requirePermission(request);
   if (!guard.ok) return guard.response;
 
@@ -30,6 +35,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     await ensureFleetTables();
+    const existing = await getTrip(companyId, id);
+    if (!existing) return errorResponse('Trip not found', 404);
+
+    // Drivers may only update their own assigned trips.
+    if (!can(roles, 'trips:manage') && can(roles, 'trips:drive')) {
+      const driver = await findDriverByUserId(companyId, userId);
+      if (!driver || existing.driverId !== driver.id) {
+        return errorResponse('Forbidden — not your trip', 403);
+      }
+    }
+
     const trip = await updateTripStatus(companyId, id, body.status as Trip['status'], body.progress);
     if (!trip) return errorResponse('Trip not found', 404);
     await writeAudit({

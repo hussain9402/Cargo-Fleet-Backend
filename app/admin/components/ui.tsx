@@ -14,12 +14,12 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
 
 const ACCENTS: Record<string, { chip: string; ring: string }> = {
   indigo: { chip: 'bg-brand-700/25 text-brand-300', ring: 'text-brand-300' },
-  emerald: { chip: 'bg-brand-500/15 text-brand-300', ring: 'text-brand-300' },
+  emerald: { chip: 'bg-brand-600/12 text-brand-300', ring: 'text-brand-300' },
   amber: { chip: 'bg-amber-500/15 text-amber-300', ring: 'text-amber-300' },
   rose: { chip: 'bg-rose-500/15 text-rose-300', ring: 'text-rose-300' },
-  sky: { chip: 'bg-brand-500/15 text-brand-300', ring: 'text-brand-300' },
-  lime: { chip: 'bg-brand-500/15 text-brand-300', ring: 'text-brand-300' },
-  teal: { chip: 'bg-brand-500/15 text-brand-300', ring: 'text-brand-300' },
+  sky: { chip: 'bg-brand-600/12 text-brand-300', ring: 'text-brand-300' },
+  lime: { chip: 'bg-brand-600/12 text-brand-300', ring: 'text-brand-300' },
+  teal: { chip: 'bg-brand-600/12 text-brand-300', ring: 'text-brand-300' },
 };
 
 export function StatCard({
@@ -73,7 +73,7 @@ export function Button({
   className?: string;
 }) {
   const variants: Record<string, string> = {
-    primary: 'bg-brand-500 text-brand-900 hover:bg-brand-400 shadow-[0_8px_20px_-8px_rgba(95,149,152,0.5)]',
+    primary: 'bg-brand-600 text-white hover:bg-brand-500 shadow-[0_8px_20px_-8px_rgba(26,82,196,0.35)]',
     secondary: 'border border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]',
     danger: 'border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20',
     ghost: 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200',
@@ -96,7 +96,7 @@ export function Badge({ tone = 'slate', children }: { tone?: string; children: R
     green: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20',
     red: 'bg-rose-500/10 text-rose-300 ring-rose-500/20',
     amber: 'bg-amber-500/10 text-amber-300 ring-amber-500/20',
-    blue: 'bg-brand-500/15 text-brand-300 ring-brand-500/25',
+    blue: 'bg-brand-600/12 text-brand-300 ring-brand-600/20',
   };
   return (
     <span
@@ -152,7 +152,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 }
 
 export const inputClass =
-  'w-full rounded-lg border border-white/10 bg-brand-900/50 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/25';
+  'w-full rounded-lg border border-white/10 bg-brand-900/50 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-brand-600/50 focus:ring-2 focus:ring-brand-600/20';
 
 export function EmptyState({ message }: { message: string }) {
   return (

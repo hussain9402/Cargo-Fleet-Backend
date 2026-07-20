@@ -157,6 +157,36 @@ export async function getSettings(scope: string): Promise<ScopeSettings> {
   return mapSettings(row, scope);
 }
 
+/** Server-only SMTP credentials (includes password). Prefer platform scope for SaaS mail. */
+export type SmtpCredentials = {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+  from: string;
+  fromName: string | null;
+};
+
+export async function getSmtpCredentials(scope: string = PLATFORM_SCOPE): Promise<SmtpCredentials | null> {
+  await ensureAdminTables();
+  const row = await queryOne<DbSettings>(`SELECT * FROM scope_settings WHERE scope = ?`, [scope]);
+  if (!row?.smtp_host || !row.smtp_user || !row.smtp_pass) return null;
+  const from =
+    row.smtp_from_name && row.smtp_from
+      ? `${row.smtp_from_name} <${row.smtp_from}>`
+      : row.smtp_from || row.smtp_user;
+  return {
+    host: row.smtp_host,
+    port: row.smtp_port ?? 587,
+    secure: !!row.smtp_secure,
+    user: row.smtp_user,
+    pass: row.smtp_pass,
+    from,
+    fromName: row.smtp_from_name,
+  };
+}
+
 export async function upsertSettings(
   scope: string,
   patch: Partial<{

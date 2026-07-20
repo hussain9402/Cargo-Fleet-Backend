@@ -15,6 +15,7 @@ import {
   SettingsPanel,
 } from './panels/shared';
 import { NavIcon } from './components/icons';
+import { BrandMark, useCompanyBrand } from './components/BrandMark';
 
 type NavItem = { key: string; label: string; icon: string };
 
@@ -50,6 +51,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [section, setSection] = useState('overview');
 
+  const isPlatformPreview =
+    !!user && (user.role === 'super_admin' || user.roles.includes('super_admin'));
+  const navPreview = isPlatformPreview ? SUPER_NAV : COMPANY_NAV;
+  const currentLabelPreview = navPreview.find((n) => n.key === section)?.label ?? 'Overview';
+  const brand = useCompanyBrand(user, currentLabelPreview);
+
   useEffect(() => {
     if (!getToken()) {
       router.replace('/admin/login');
@@ -73,7 +80,7 @@ export default function AdminPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-brand-900">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-brand-500" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-brand-600" />
           <p className="text-sm text-slate-500">Loading console…</p>
         </div>
       </div>
@@ -101,7 +108,7 @@ export default function AdminPage() {
               logout();
               router.replace('/admin/login');
             }}
-            className="mt-5 rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-brand-900 hover:bg-brand-400"
+            className="mt-5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-500"
           >
             Sign out
           </button>
@@ -148,13 +155,15 @@ export default function AdminPage() {
     <div className="flex min-h-screen bg-brand-900 text-slate-200">
       {/* Sidebar */}
       <aside className="fixed inset-y-0 left-0 flex w-[260px] flex-col border-r border-white/[0.06] bg-brand-950">
-        <div className="flex items-center gap-3 px-6 py-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-base font-bold text-brand-900 shadow-[0_8px_20px_-8px_rgba(95,149,152,0.6)]">
-            CF
-          </div>
-          <div>
-            <p className="text-[15px] font-semibold leading-tight text-white">CargoFlow</p>
-            <p className="text-xs text-slate-500">{isPlatform ? 'SaaS Platform' : 'Company Admin'}</p>
+        <div className="flex items-center gap-3.5 px-5 py-5">
+          <BrandMark user={user} className="h-14 w-14 shrink-0 rounded-xl object-contain" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-semibold leading-tight tracking-tight text-white">
+              {brand.name}
+            </p>
+            <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
+              {isPlatform ? 'SaaS Platform' : 'Company Admin'}
+            </p>
           </div>
         </div>
 
@@ -170,17 +179,17 @@ export default function AdminPage() {
                 onClick={() => setSection(item.key)}
                 className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                   active
-                    ? 'bg-brand-500/10 text-brand-300'
+                    ? 'bg-brand-600/8 text-brand-300'
                     : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'
                 }`}
               >
                 {active && (
-                  <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand-500" />
+                  <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand-600" />
                 )}
                 <span
                   className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition ${
                     active
-                      ? 'bg-brand-500/15 text-brand-300'
+                      ? 'bg-brand-600/12 text-brand-300'
                       : 'bg-white/[0.03] text-slate-400 group-hover:bg-white/[0.06] group-hover:text-slate-200'
                   }`}
                 >
@@ -194,7 +203,7 @@ export default function AdminPage() {
 
         <div className="border-t border-white/[0.06] p-4">
           <div className="flex items-center gap-3 rounded-xl bg-white/[0.03] p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-xs font-bold text-brand-900">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-800 text-xs font-bold text-white">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
@@ -231,10 +240,10 @@ export default function AdminPage() {
             </div>
             <button className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.03] text-slate-400 transition hover:text-slate-200">
               🔔
-              <span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brand-500" />
+              <span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brand-600" />
             </button>
             <div className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.03] py-1.5 pl-1.5 pr-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-700 text-xs font-bold text-brand-900">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600 to-brand-800 text-xs font-bold text-white">
                 {initials}
               </div>
               <div className="hidden leading-tight sm:block">

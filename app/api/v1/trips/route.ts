@@ -2,24 +2,34 @@ import { NextRequest } from 'next/server';
 import { errorResponse, jsonResponse, optionsResponse, parseJsonBody } from '@/app/lib/auth/response';
 import { requirePermission } from '@/app/lib/rbac/guard';
 import { getClientIp, writeAudit } from '@/app/lib/rbac/audit';
-import { createTrip, ensureFleetTables, listTrips, seedCompanyFleet } from '@/app/lib/fleet/fleet';
+import { canAny } from '@/app/lib/rbac/permissions';
+import {
+  createTrip,
+  ensureFleetTables,
+  listTripsScoped,
+  resolveDataScope,
+} from '@/app/lib/fleet/fleet';
 
 export async function OPTIONS() {
   return optionsResponse();
 }
 
 export async function GET(request: NextRequest) {
-  const guard = await requirePermission(request, 'trips:view');
+  // Managers: trips:view · Drivers: trips:drive · Customers: shipments:track
+  const guard = await requirePermission(request);
   if (!guard.ok) return guard.response;
 
-  const { companyId } = guard.context;
+  const { companyId, userId, roles } = guard.context;
+  if (!canAny(roles, ['trips:view', 'trips:drive', 'shipments:track', 'trips:manage'])) {
+    return errorResponse('Forbidden', 403);
+  }
   if (!companyId) return jsonResponse({ trips: [] });
 
   try {
     await ensureFleetTables();
-    await seedCompanyFleet(companyId);
-    const trips = await listTrips(companyId);
-    return jsonResponse({ trips });
+    const scope = resolveDataScope(roles);
+    const trips = await listTripsScoped(companyId, scope, userId);
+    return jsonResponse({ trips, scope });
   } catch (error) {
     console.error('List trips error:', error);
     return errorResponse('Unable to load trips', 500);
@@ -38,6 +48,7 @@ export async function POST(request: NextRequest) {
     destination?: string;
     vehicleId?: string;
     driverId?: string;
+    customerUserId?: string;
     cargo?: string;
     distance?: number;
     departAt?: string;
@@ -55,6 +66,7 @@ export async function POST(request: NextRequest) {
       destination: body.destination,
       vehicleId: body.vehicleId,
       driverId: body.driverId,
+      customerUserId: body.customerUserId,
       cargo: body.cargo,
       distance: body.distance,
       departAt: body.departAt,

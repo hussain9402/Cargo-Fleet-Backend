@@ -76,7 +76,7 @@ export function BarList({ data }: { data: { label: string; value: number; color?
           <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/[0.05]">
             <div
               className="h-full rounded-full transition-all"
-              style={{ width: `${(d.value / max) * 100}%`, background: d.color ?? '#5F9598' }}
+              style={{ width: `${(d.value / max) * 100}%`, background: d.color ?? '#1A52C4' }}
             />
           </div>
           <span className="w-8 shrink-0 text-right text-sm font-medium text-slate-200">{d.value}</span>
@@ -91,7 +91,7 @@ export function BarList({ data }: { data: { label: string; value: number; color?
 export function Gauge({
   value,
   label,
-  color = '#5F9598',
+  color = '#1A52C4',
   size = 176,
   thickness = 22,
 }: {
@@ -122,7 +122,7 @@ export function Gauge({
 export function AreaChart({
   data,
   labels,
-  color = '#5F9598',
+  color = '#1A52C4',
   height = 150,
 }: {
   data: number[];
@@ -192,7 +192,7 @@ export function AreaChart({
         <path d={area} fill={`url(#grad-${gradId})`} />
         <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => (
-          <circle key={i} cx={p[0]} cy={p[1]} r="3" fill="#0A2A38" stroke={color} strokeWidth="2" />
+          <circle key={i} cx={p[0]} cy={p[1]} r="3" fill="#121212" stroke={color} strokeWidth="2" />
         ))}
       </svg>
       {labels && (

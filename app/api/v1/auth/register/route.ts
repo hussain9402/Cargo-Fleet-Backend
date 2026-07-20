@@ -7,6 +7,11 @@ export async function OPTIONS() {
   return optionsResponse();
 }
 
+/**
+ * Legacy / invite join endpoint.
+ * Creating a new company requires OTP: POST /auth/register/start then /auth/register/verify.
+ * This route only allows joining an existing company (companyId required).
+ */
 export async function POST(request: NextRequest) {
   try {
     await ensureAuthTables();
@@ -17,11 +22,17 @@ export async function POST(request: NextRequest) {
       return errorResponse(parsed.error.errors[0]?.message ?? 'Invalid request body');
     }
 
+    if (!parsed.data.companyId) {
+      return errorResponse(
+        'Company signup requires email verification. Use /api/v1/auth/register/start then /verify.',
+        400,
+      );
+    }
+
     const result = await registerUser({
       email: parsed.data.email,
       password: parsed.data.password,
       fullName: parsed.data.fullName,
-      companyName: parsed.data.companyName,
       companyId: parsed.data.companyId,
       role: parsed.data.role,
     });

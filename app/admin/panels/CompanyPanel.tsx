@@ -112,19 +112,19 @@ function Overview() {
   const vehicleOffline = Math.max(0, v.total - v.moving - v.idle - v.maintenance);
 
   const vehicleSlices = [
-    { label: 'Moving', value: v.moving, color: '#5F9598' },
+    { label: 'Moving', value: v.moving, color: '#1A52C4' },
     { label: 'Idle', value: v.idle, color: '#fbbf24' },
     { label: 'Maintenance', value: v.maintenance, color: '#fb7185' },
     { label: 'Offline', value: vehicleOffline, color: '#64748b' },
   ];
   const tripSlices = [
-    { label: 'In transit', value: t.inTransit, color: '#7FB4B7' },
-    { label: 'Scheduled', value: t.scheduled, color: '#1D546D' },
+    { label: 'In transit', value: t.inTransit, color: '#3D6AE8' },
+    { label: 'Scheduled', value: t.scheduled, color: '#8FA3EB' },
     { label: 'Delayed', value: t.delayed, color: '#fb7185' },
-    { label: 'Completed', value: t.completed, color: '#5F9598' },
+    { label: 'Completed', value: t.completed, color: '#1A52C4' },
   ];
   const driverBars = [
-    { label: 'On trip', value: d.onTrip, color: '#5F9598' },
+    { label: 'On trip', value: d.onTrip, color: '#1A52C4' },
     { label: 'Resting', value: d.resting, color: '#fbbf24' },
     { label: 'Off duty', value: d.offDuty, color: '#64748b' },
   ];
@@ -153,11 +153,11 @@ function Overview() {
             </div>
             <Badge tone="green">Live</Badge>
           </div>
-          <AreaChart data={weekly} labels={dayLabels} color="#5F9598" height={170} />
+          <AreaChart data={weekly} labels={dayLabels} color="#1A52C4" height={170} />
         </Card>
         <Card className="flex flex-col items-center justify-center p-6">
           <h3 className="mb-4 self-start font-semibold text-white">Fleet health</h3>
-          <Gauge value={summary.fleetHealth} label="Avg. condition" color="#5F9598" />
+          <Gauge value={summary.fleetHealth} label="Avg. condition" color="#1A52C4" />
         </Card>
       </div>
 

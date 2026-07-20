@@ -31,8 +31,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // Owners may edit only their own company; only platform may suspend/activate.
   if (!isPlatform && id !== companyId) return errorResponse('Forbidden', 403);
 
-  const body = await parseJsonBody<{ name?: string; status?: string }>(request);
-  if (!body || (body.name === undefined && body.status === undefined)) {
+  const body = await parseJsonBody<{ name?: string; status?: string; logoUrl?: string | null }>(request);
+  if (!body || (body.name === undefined && body.status === undefined && body.logoUrl === undefined)) {
     return errorResponse('Nothing to update');
   }
   if (body.status !== undefined) {
@@ -46,6 +46,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const company = await updateCompany(id, {
       name: body.name,
       status: body.status as 'active' | 'suspended' | undefined,
+      logoUrl: body.logoUrl,
     });
     await writeAudit({
       companyId: id,
@@ -53,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       action: 'company.update',
       resource: `company:${id}`,
       ip: getClientIp(request),
-      detail: { name: body.name, status: body.status },
+      detail: { name: body.name, status: body.status, logoUrl: body.logoUrl },
     });
     return jsonResponse({ company });
   } catch (error) {

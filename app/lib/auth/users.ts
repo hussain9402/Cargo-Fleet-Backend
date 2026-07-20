@@ -6,7 +6,7 @@ import {
   hashToken,
   signAccessToken,
 } from './jwt';
-import { sendPasswordResetEmail } from './mail';
+import { sendPasswordResetEmail, sendSignupOtpEmail, isSmtpConfigured } from './mail';
 import { verifyGoogleIdToken } from './google';
 import { isPlatformRole, type UserRole } from '../rbac/permissions';
 import type {
@@ -28,29 +28,34 @@ const USER_COLUMNS =
 
 export async function findCompanyById(id: string): Promise<Company | null> {
   const row = await queryOne<DbCompany>(
-    `SELECT id, name, status, created_at, updated_at FROM companies WHERE id = ? LIMIT 1`,
+    `SELECT id, name, status, logo_url, created_at, updated_at FROM companies WHERE id = ? LIMIT 1`,
     [id],
   );
   if (!row) return null;
-  return { id: row.id, name: row.name, status: row.status };
+  return { id: row.id, name: row.name, status: row.status, logoUrl: row.logo_url ?? null };
 }
 
 export async function listCompanies(): Promise<Company[]> {
   const rows = await query<DbCompany[]>(
-    `SELECT id, name, status, created_at, updated_at FROM companies ORDER BY created_at DESC`,
+    `SELECT id, name, status, logo_url, created_at, updated_at FROM companies ORDER BY created_at DESC`,
   );
-  return rows.map((row) => ({ id: row.id, name: row.name, status: row.status }));
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    logoUrl: row.logo_url ?? null,
+  }));
 }
 
 export async function createCompany(name: string): Promise<Company> {
   const id = generateId();
   await query(`INSERT INTO companies (id, name, status) VALUES (?, ?, 'active')`, [id, name]);
-  return { id, name, status: 'active' };
+  return { id, name, status: 'active', logoUrl: null };
 }
 
 export async function updateCompany(
   id: string,
-  patch: { name?: string; status?: 'active' | 'suspended' },
+  patch: { name?: string; status?: 'active' | 'suspended'; logoUrl?: string | null },
 ): Promise<Company | null> {
   const sets: string[] = [];
   const params: unknown[] = [];
@@ -61,6 +66,10 @@ export async function updateCompany(
   if (patch.status !== undefined) {
     sets.push('status = ?');
     params.push(patch.status);
+  }
+  if (patch.logoUrl !== undefined) {
+    sets.push('logo_url = ?');
+    params.push(patch.logoUrl);
   }
   if (sets.length === 0) return findCompanyById(id);
 
@@ -190,12 +199,18 @@ export async function registerUser(input: {
     const company = await findCompanyById(input.companyId);
     if (!company) throw new Error('COMPANY_NOT_FOUND');
     companyId = company.id;
-    initialRole = input.role ?? 'driver';
+    // Public join cannot self-elevate — invite path only allows driver/customer.
+    const joinRole = input.role;
+    if (joinRole === 'driver' || joinRole === 'customer') {
+      initialRole = joinRole;
+    } else {
+      initialRole = 'driver';
+    }
   } else {
-    // No existing company → create one and make this user its owner.
+    // New company → this user becomes company_owner. Empty fleet (no demo seed).
     const company = await createCompany(input.companyName?.trim() || `${input.fullName}'s Company`);
     companyId = company.id;
-    initialRole = input.role ?? 'company_owner';
+    initialRole = 'company_owner';
   }
 
   const id = generateId();
@@ -528,7 +543,11 @@ export async function requestPasswordReset(email: string) {
     [generateId(), user.id, tokenHash, expiresAt],
   );
 
-  await sendPasswordResetEmail(user.email, code);
+  const company = user.company_id ? await findCompanyById(user.company_id) : null;
+  await sendPasswordResetEmail(user.email, code, {
+    name: company?.name || process.env.APP_NAME || 'FleetFlow',
+    logoUrl: company?.logoUrl,
+  });
 
   return { message: 'If that email exists, a reset code has been sent.' };
 }
@@ -564,6 +583,129 @@ export async function resetPassword(input: { email: string; code: string; passwo
 }
 
 /* ------------------------------------------------------------------ */
+/* Company signup with OTP (account created only after verify)         */
+/* ------------------------------------------------------------------ */
+
+export async function startCompanyRegistration(input: {
+  email: string;
+  password: string;
+  fullName: string;
+  companyName: string;
+}) {
+  await ensureAuthTables();
+
+  if (!(await isSmtpConfigured())) {
+    throw new Error('SMTP_NOT_CONFIGURED');
+  }
+
+  const email = input.email.toLowerCase().trim();
+  const fullName = input.fullName.trim();
+  const companyName = input.companyName.trim();
+
+  if (await findUserByEmail(email)) {
+    throw new Error('EMAIL_EXISTS');
+  }
+
+  const code = generateResetCode();
+  const passwordHash = await bcrypt.hash(input.password, 10);
+  const codeHash = hashToken(code);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  await query(`DELETE FROM pending_registrations WHERE email = ?`, [email]);
+  await query(
+    `INSERT INTO pending_registrations
+      (id, email, full_name, company_name, password_hash, code_hash, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [generateId(), email, fullName, companyName, passwordHash, codeHash, expiresAt],
+  );
+
+  await sendSignupOtpEmail(email, code, companyName);
+
+  return {
+    message: 'We sent a 6-digit verification code to your email. Verify it to create your company account.',
+    email,
+  };
+}
+
+export async function verifyCompanyRegistration(input: { email: string; code: string }) {
+  await ensureAuthTables();
+
+  const email = input.email.toLowerCase().trim();
+  const pending = await queryOne<{
+    id: string;
+    email: string;
+    full_name: string;
+    company_name: string;
+    password_hash: string;
+    code_hash: string;
+  }>(
+    `SELECT id, email, full_name, company_name, password_hash, code_hash
+     FROM pending_registrations
+     WHERE email = ? AND expires_at > NOW()
+     LIMIT 1`,
+    [email],
+  );
+
+  if (!pending || pending.code_hash !== hashToken(input.code.trim())) {
+    throw new Error('INVALID_OTP');
+  }
+
+  if (await findUserByEmail(email)) {
+    await query(`DELETE FROM pending_registrations WHERE id = ?`, [pending.id]);
+    throw new Error('EMAIL_EXISTS');
+  }
+
+  // Create empty company tenant — no demo fleet data.
+  const company = await createCompany(pending.company_name);
+  const userId = generateId();
+
+  await query(`INSERT INTO users (id, name, email, password, company_id) VALUES (?, ?, ?, ?, ?)`, [
+    userId,
+    pending.full_name,
+    pending.email,
+    pending.password_hash,
+    company.id,
+  ]);
+
+  await assignUserRole(userId, 'company_owner', true);
+  await query(`DELETE FROM pending_registrations WHERE id = ? OR email = ?`, [pending.id, email]);
+
+  const user = await findUserById(userId);
+  if (!user) throw new Error('USER_CREATE_FAILED');
+
+  return createAuthSession(user);
+}
+
+export async function resendCompanyRegistrationOtp(emailRaw: string) {
+  await ensureAuthTables();
+
+  if (!(await isSmtpConfigured())) {
+    throw new Error('SMTP_NOT_CONFIGURED');
+  }
+
+  const email = emailRaw.toLowerCase().trim();
+  const pending = await queryOne<{
+    id: string;
+    company_name: string;
+  }>(`SELECT id, company_name FROM pending_registrations WHERE email = ? LIMIT 1`, [email]);
+
+  if (!pending) {
+    throw new Error('PENDING_NOT_FOUND');
+  }
+
+  const code = generateResetCode();
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  await query(`UPDATE pending_registrations SET code_hash = ?, expires_at = ? WHERE id = ?`, [
+    hashToken(code),
+    expiresAt,
+    pending.id,
+  ]);
+
+  await sendSignupOtpEmail(email, code, pending.company_name);
+  return { message: 'A new verification code has been sent.', email };
+}
+
+/* ------------------------------------------------------------------ */
 /* Schema / migrations                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -586,10 +728,15 @@ export async function ensureAuthTables(force = false) {
       id CHAR(36) PRIMARY KEY,
       name VARCHAR(191) NOT NULL,
       status ENUM('active', 'suspended') NOT NULL DEFAULT 'active',
+      logo_url VARCHAR(512) NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
+
+  if (!(await columnExists('companies', 'logo_url'))) {
+    await query(`ALTER TABLE companies ADD COLUMN logo_url VARCHAR(512) NULL`);
+  }
 
   await query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -693,6 +840,19 @@ export async function ensureAuthTables(force = false) {
       used_at TIMESTAMP NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS pending_registrations (
+      id CHAR(36) PRIMARY KEY,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      full_name VARCHAR(255) NOT NULL,
+      company_name VARCHAR(191) NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      code_hash VARCHAR(255) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 

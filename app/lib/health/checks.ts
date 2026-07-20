@@ -1,6 +1,4 @@
 import { query, resetPool } from '../db';
-import { isSmtpConfigured } from '../auth/mail';
-import nodemailer from 'nodemailer';
 import {
   buildHealthUrlsWithPublic,
   getServerPort,
@@ -23,8 +21,14 @@ export type HealthReport = {
     network: string[];
     public: string | null;
     publicIp: string | null;
+    admin: {
+      localhost: string;
+      network: string[];
+      public: string | null;
+    };
   };
   healthPath: string;
+  adminPath: string;
 };
 
 export async function checkDatabaseConnection(): Promise<ServiceStatus> {
@@ -73,23 +77,24 @@ export async function checkDatabaseConnection(): Promise<ServiceStatus> {
 }
 
 export async function checkSmtpConnection(): Promise<ServiceStatus> {
-  if (!isSmtpConfigured()) {
+  const { resolveSmtp } = await import('../auth/mail');
+  const smtp = await resolveSmtp();
+
+  if (!smtp) {
     return {
       configured: false,
       connected: false,
-      message: 'SMTP env vars not set (SMTP_HOST, SMTP_USER, SMTP_PASS)',
+      message: 'SMTP not set — configure in Super Admin → Settings → SMTP (or SMTP_* env)',
     };
   }
 
   try {
+    const nodemailer = (await import('nodemailer')).default;
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      auth: { user: smtp.user, pass: smtp.pass },
     });
 
     await transporter.verify();
@@ -97,14 +102,14 @@ export async function checkSmtpConnection(): Promise<ServiceStatus> {
     return {
       configured: true,
       connected: true,
-      message: `Connected to ${process.env.SMTP_HOST}:${process.env.SMTP_PORT || 587}`,
+      message: `Connected to ${smtp.host}:${smtp.port} (${smtp.source})`,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'SMTP verification failed';
     return {
       configured: true,
       connected: false,
-      message,
+      message: `${message} (${smtp.source})`,
     };
   }
 }
@@ -128,6 +133,7 @@ export async function getHealthReport(): Promise<HealthReport> {
     smtp,
     urls,
     healthPath: '/api/health',
+    adminPath: '/admin/login',
   };
 }
 
@@ -160,6 +166,30 @@ export function formatStartupBanner(report: HealthReport) {
     lines.push('    (requires port forwarding on your router to reach from outside)');
   } else {
     lines.push('  • Public IP   (unavailable — check internet connection)');
+  }
+
+  lines.push('──────────────────────────────────────────────────────');
+  lines.push('  Website');
+  lines.push(`  • Landing           http://localhost:${report.port}/`);
+  lines.push(`  • Create account    http://localhost:${report.port}/signup`);
+  lines.push('──────────────────────────────────────────────────────');
+  lines.push('  Admin panels (same login URL — panel depends on account)');
+  lines.push('  • SaaS Super Admin   use: superadmin@cargo.io');
+  lines.push('  • Company Admin      use: owner@demo.com (or any company_owner)');
+  lines.push(`  • Localhost          ${report.urls.admin.localhost}`);
+
+  if (report.urls.admin.network.length) {
+    for (const url of report.urls.admin.network) {
+      lines.push(`  • Network            ${url}`);
+    }
+  } else {
+    lines.push('  • Network            (no LAN IP found — use npm run dev with -H 0.0.0.0)');
+  }
+
+  if (report.urls.admin.public) {
+    lines.push(`  • Public IP          ${report.urls.admin.public}`);
+  } else {
+    lines.push('  • Public IP          (unavailable — check internet connection)');
   }
 
   lines.push('══════════════════════════════════════════════════════', '');

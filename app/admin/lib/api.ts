@@ -9,10 +9,15 @@ export type AdminUser = {
   role: UserRole | null;
   roles: UserRole[];
   companyId: string | null;
-  company: { id: string; name: string; status: 'active' | 'suspended' } | null;
+  company: { id: string; name: string; status: 'active' | 'suspended'; logoUrl: string | null } | null;
 };
 
-export type Company = { id: string; name: string; status: 'active' | 'suspended' };
+export type Company = {
+  id: string;
+  name: string;
+  status: 'active' | 'suspended';
+  logoUrl: string | null;
+};
 
 export type ManagedUser = {
   id: string;
@@ -153,6 +158,77 @@ export async function login(email: string, password: string) {
   }
   setSession(data.user, data.accessToken, data.refreshToken);
   return data.user as AdminUser;
+}
+
+export async function startCompanySignup(input: {
+  fullName: string;
+  email: string;
+  password: string;
+  companyName: string;
+}) {
+  const res = await fetch('/api/v1/auth/register/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError((data as { error?: string }).error ?? 'Unable to start signup', res.status);
+  }
+  return data as { message: string; email: string };
+}
+
+export async function verifyCompanySignup(email: string, code: string) {
+  const res = await fetch('/api/v1/auth/register/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError((data as { error?: string }).error ?? 'Unable to verify signup', res.status);
+  }
+  setSession(data.user, data.accessToken, data.refreshToken);
+  return data.user as AdminUser;
+}
+
+export async function resendCompanySignupOtp(email: string) {
+  const res = await fetch('/api/v1/auth/register/resend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError((data as { error?: string }).error ?? 'Unable to resend code', res.status);
+  }
+  return data as { message: string; email: string };
+}
+
+export async function forgotPassword(email: string) {
+  const res = await fetch('/api/v1/auth/forgot-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError((data as { error?: string }).error ?? 'Unable to send reset email', res.status);
+  }
+  return data as { message: string };
+}
+
+export async function resetPassword(email: string, code: string, password: string) {
+  const res = await fetch('/api/v1/auth/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError((data as { error?: string }).error ?? 'Unable to reset password', res.status);
+  }
+  return data as { message: string };
 }
 
 export async function logout() {

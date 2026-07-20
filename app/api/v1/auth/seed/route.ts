@@ -1,6 +1,6 @@
-import { errorResponse, jsonResponse } from '@/app/lib/auth/response';
 import { ensureAuthTables, seedDemoUser } from '@/app/lib/auth/users';
-import { ensureFleetTables, seedCompanyFleet } from '@/app/lib/fleet/fleet';
+import { ensureFleetTables, linkDemoOwnData, seedCompanyFleet } from '@/app/lib/fleet/fleet';
+import { errorResponse, jsonResponse } from '@/app/lib/auth/response';
 
 export async function GET() {
   try {
@@ -9,12 +9,10 @@ export async function GET() {
     const seed = await seedDemoUser();
     if (seed?.companyId) {
       await seedCompanyFleet(seed.companyId);
+      await linkDemoOwnData(seed.companyId);
     }
-
     return jsonResponse({
-      message: 'Auth + fleet tables ready, demo data seeded',
-      password: 'password123',
-      superAdmin: 'superadmin@cargo.io',
+      message: 'Auth + fleet tables ready, demo data seeded with own-data links',
       demoCompanyUsers: seed?.users ?? [],
     });
   } catch (error) {

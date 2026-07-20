@@ -10,8 +10,11 @@ export async function OPTIONS() {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!isSmtpConfigured()) {
-      return errorResponse('Password reset email is not configured on the server', 503);
+    if (!(await isSmtpConfigured())) {
+      return errorResponse(
+        'Password reset email is not configured. Ask the platform admin to set SMTP in Super Admin → Settings.',
+        503,
+      );
     }
 
     await ensureAuthTables();

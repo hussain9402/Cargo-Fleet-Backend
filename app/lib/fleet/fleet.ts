@@ -28,6 +28,7 @@ export type Driver = {
   name: string;
   initials: string;
   vehicleId: string | null;
+  userId: string | null;
   status: 'on-trip' | 'resting' | 'off-duty';
   safetyScore: number;
   phone: string;
@@ -43,6 +44,7 @@ export type Trip = {
   ref: string;
   vehicleId: string | null;
   driverId: string | null;
+  customerUserId: string | null;
   origin: string;
   destination: string;
   status: 'in-transit' | 'scheduled' | 'completed' | 'delayed';
@@ -111,6 +113,7 @@ export async function ensureFleetTables(force = false) {
       ref VARCHAR(40) NOT NULL,
       vehicle_id CHAR(36) NULL,
       driver_id CHAR(36) NULL,
+      customer_user_id CHAR(36) NULL,
       origin VARCHAR(160) NOT NULL DEFAULT '',
       destination VARCHAR(160) NOT NULL DEFAULT '',
       status VARCHAR(20) NOT NULL DEFAULT 'scheduled',
@@ -124,7 +127,24 @@ export async function ensureFleetTables(force = false) {
     )
   `);
 
+  // Own-data links (auto-migrate older installs).
+  await ensureColumn('drivers', 'user_id', 'CHAR(36) NULL');
+  await ensureColumn('trips', 'customer_user_id', 'CHAR(36) NULL');
+
   fleetTablesReady = true;
+}
+
+async function ensureColumn(table: string, column: string, definition: string) {
+  // MySQL prepared statements don't support placeholders in SHOW COLUMNS LIKE.
+  if (!/^[a-zA-Z0-9_]+$/.test(table) || !/^[a-zA-Z0-9_]+$/.test(column)) {
+    throw new Error('Invalid table/column identifier');
+  }
+  const rows = await query<Record<string, unknown>[]>(
+    `SHOW COLUMNS FROM \`${table}\` LIKE '${column}'`,
+  );
+  if (!rows.length) {
+    await query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -157,6 +177,7 @@ function toDriver(row: any): Driver {
     name: row.name,
     initials: row.initials,
     vehicleId: row.vehicle_id,
+    userId: row.user_id ?? null,
     status: row.status,
     safetyScore: row.safety_score,
     phone: row.phone,
@@ -174,6 +195,7 @@ function toTrip(row: any): Trip {
     ref: row.ref,
     vehicleId: row.vehicle_id,
     driverId: row.driver_id,
+    customerUserId: row.customer_user_id ?? null,
     origin: row.origin,
     destination: row.destination,
     status: row.status,
@@ -210,6 +232,87 @@ export async function listTrips(companyId: string): Promise<Trip[]> {
   const rows = await query<any[]>(
     `SELECT * FROM trips WHERE company_id = ? ORDER BY created_at DESC`,
     [companyId],
+  );
+  return rows.map(toTrip);
+}
+
+/** Driver profile linked to a login user (for own-data scoping). */
+export async function findDriverByUserId(
+  companyId: string,
+  userId: string,
+): Promise<Driver | null> {
+  const row = await queryOne<any>(
+    `SELECT * FROM drivers WHERE company_id = ? AND user_id = ? LIMIT 1`,
+    [companyId, userId],
+  );
+  return row ? toDriver(row) : null;
+}
+
+export async function getTrip(companyId: string, id: string): Promise<Trip | null> {
+  const row = await queryOne<any>(
+    `SELECT * FROM trips WHERE company_id = ? AND id = ? LIMIT 1`,
+    [companyId, id],
+  );
+  return row ? toTrip(row) : null;
+}
+
+/**
+ * Own-data scopes used by API routes.
+ * - company: full tenant lists (managers / owners / support with view perms)
+ * - driver: only rows tied to this user's driver profile
+ * - customer: only trips where customer_user_id = this user
+ */
+export type DataScope = 'company' | 'driver' | 'customer';
+
+export async function listVehiclesScoped(
+  companyId: string,
+  scope: DataScope,
+  userId: string,
+): Promise<Vehicle[]> {
+  if (scope === 'company') return listVehicles(companyId);
+  if (scope === 'customer') {
+    // Customer's shipments' vehicles only
+    const trips = await listTripsScoped(companyId, 'customer', userId);
+    const ids = [...new Set(trips.map((t) => t.vehicleId).filter(Boolean))] as string[];
+    if (!ids.length) return [];
+    const all = await listVehicles(companyId);
+    return all.filter((v) => ids.includes(v.id));
+  }
+  const driver = await findDriverByUserId(companyId, userId);
+  if (!driver?.vehicleId) return [];
+  const vehicle = await getVehicle(companyId, driver.vehicleId);
+  return vehicle ? [vehicle] : [];
+}
+
+export async function listDriversScoped(
+  companyId: string,
+  scope: DataScope,
+  userId: string,
+): Promise<Driver[]> {
+  if (scope === 'company') return listDrivers(companyId);
+  if (scope === 'customer') return [];
+  const driver = await findDriverByUserId(companyId, userId);
+  return driver ? [driver] : [];
+}
+
+export async function listTripsScoped(
+  companyId: string,
+  scope: DataScope,
+  userId: string,
+): Promise<Trip[]> {
+  if (scope === 'company') return listTrips(companyId);
+  if (scope === 'customer') {
+    const rows = await query<any[]>(
+      `SELECT * FROM trips WHERE company_id = ? AND customer_user_id = ? ORDER BY created_at DESC`,
+      [companyId, userId],
+    );
+    return rows.map(toTrip);
+  }
+  const driver = await findDriverByUserId(companyId, userId);
+  if (!driver) return [];
+  const rows = await query<any[]>(
+    `SELECT * FROM trips WHERE company_id = ? AND driver_id = ? ORDER BY created_at DESC`,
+    [companyId, driver.id],
   );
   return rows.map(toTrip);
 }
@@ -272,14 +375,15 @@ export async function createTrip(
   const id = generateId();
   const ref = input.ref ?? `TRP-${Math.floor(1000 + Math.random() * 9000)}`;
   await query(
-    `INSERT INTO trips (id, company_id, ref, vehicle_id, driver_id, origin, destination, status, progress, depart_at, arrive_at, distance, cargo)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO trips (id, company_id, ref, vehicle_id, driver_id, customer_user_id, origin, destination, status, progress, depart_at, arrive_at, distance, cargo)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       companyId,
       ref,
       input.vehicleId ?? null,
       input.driverId ?? null,
+      input.customerUserId ?? null,
       input.origin,
       input.destination,
       input.status ?? 'scheduled',
@@ -332,11 +436,16 @@ export type DashboardSummary = {
   fleetHealth: number;
 };
 
-export async function getDashboardSummary(companyId: string): Promise<DashboardSummary> {
+export async function getDashboardSummary(
+  companyId: string,
+  scope: DataScope = 'company',
+  userId?: string,
+): Promise<DashboardSummary> {
+  const uid = userId ?? '';
   const [vehicles, drivers, trips] = await Promise.all([
-    listVehicles(companyId),
-    listDrivers(companyId),
-    listTrips(companyId),
+    listVehiclesScoped(companyId, scope, uid),
+    listDriversScoped(companyId, scope, uid),
+    listTripsScoped(companyId, scope, uid),
   ]);
 
   const avgHealth = vehicles.length
@@ -435,4 +544,90 @@ export async function seedCompanyFleet(companyId: string) {
       [generateId(), companyId, t.ref, vehicleIds[t.vi] ?? null, driverIds[t.di] ?? null, t.o, t.d, t.s, t.p, t.dep, t.arr, t.dist, t.cargo],
     );
   }
+}
+
+/**
+ * Link demo login accounts to fleet rows so own-data filters work.
+ * Safe to call repeatedly (idempotent).
+ */
+export async function linkDemoOwnData(companyId: string) {
+  await ensureFleetTables();
+
+  const driverUser = await queryOne<{ id: string }>(
+    `SELECT id FROM users WHERE email = 'driver@cargo.io' AND company_id = ? LIMIT 1`,
+    [companyId],
+  );
+  if (driverUser) {
+    const linked = await queryOne<{ id: string }>(
+      `SELECT id FROM drivers WHERE company_id = ? AND user_id = ? LIMIT 1`,
+      [companyId, driverUser.id],
+    );
+    if (!linked) {
+      // Prefer Marcus Reed; otherwise first unlinked driver.
+      const marcus = await queryOne<{ id: string }>(
+        `SELECT id FROM drivers WHERE company_id = ? AND name = 'Marcus Reed' LIMIT 1`,
+        [companyId],
+      );
+      const target =
+        marcus ??
+        (await queryOne<{ id: string }>(
+          `SELECT id FROM drivers WHERE company_id = ? AND (user_id IS NULL OR user_id = '') ORDER BY name ASC LIMIT 1`,
+          [companyId],
+        ));
+      if (target) {
+        await query(`UPDATE drivers SET user_id = ? WHERE id = ? AND company_id = ?`, [
+          driverUser.id,
+          target.id,
+          companyId,
+        ]);
+      }
+    }
+  }
+
+  const customerUser = await queryOne<{ id: string }>(
+    `SELECT id FROM users WHERE email = 'customer@cargo.io' AND company_id = ? LIMIT 1`,
+    [companyId],
+  );
+  if (customerUser) {
+    const owned = await queryOne<{ count: number }>(
+      `SELECT COUNT(*) AS count FROM trips WHERE company_id = ? AND customer_user_id = ?`,
+      [companyId, customerUser.id],
+    );
+    if ((owned?.count ?? 0) === 0) {
+      const trips = await query<{ id: string }[]>(
+        `SELECT id FROM trips WHERE company_id = ? AND (customer_user_id IS NULL OR customer_user_id = '')
+         ORDER BY created_at DESC LIMIT 2`,
+        [companyId],
+      );
+      for (const t of trips) {
+        await query(`UPDATE trips SET customer_user_id = ? WHERE id = ? AND company_id = ?`, [
+          customerUser.id,
+          t.id,
+          companyId,
+        ]);
+      }
+    }
+  }
+}
+
+/** Resolve list scope from the caller's roles. */
+export function resolveDataScope(roles: string[]): DataScope {
+  const set = new Set(roles);
+  // Platform / managers / anyone with company-wide view perms
+  if (
+    set.has('super_admin') ||
+    set.has('company_owner') ||
+    set.has('fleet_manager') ||
+    set.has('dispatcher') ||
+    set.has('driver_manager') ||
+    set.has('maintenance_manager') ||
+    set.has('finance_manager') ||
+    set.has('customer_support')
+  ) {
+    return 'company';
+  }
+  if (set.has('driver')) return 'driver';
+  if (set.has('customer')) return 'customer';
+  // Fallback: if they only hold tracking:own / trips:drive style access
+  return 'driver';
 }

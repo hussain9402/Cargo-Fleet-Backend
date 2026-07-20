@@ -2,17 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand-canvas: #f4f6fb;
+  --brand-ink: #010000;
+  --brand-deep: #002c8f;
+  --brand-accent: #0045dd;
+}
+
+/* Admin: slightly softer blue than the marketing site */
+.admin-theme {
+  --brand-accent: #1a52c4;
+  --admin-blue: #1a52c4;
+  --admin-blue-soft: rgba(26, 82, 196, 0.12);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--brand-canvas);
+  color: var(--brand-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
 input[type='number'] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
 
-input[type='number']::-webkit-inner-spin-button {
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-input[type='number']::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+/* Landing route path stroke */
+.route-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-line 2.6s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
+}
+
+@keyframes draw-line {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+  /* Keep website truck loader readable under reduced motion */
+  .animate-truck-drive {
+    animation: none !important;
+    left: 50% !important;
+    transform: translate(-50%, 0) !important;
+  }
+  .animate-road-dash {
+    animation: none !important;
+  }
 }

@@ -189,12 +189,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'settings:profile',
   ],
 
+  // Drivers only see their own trips / vehicle (enforced server-side via user_id link).
   driver: [
     'dashboard:view',
-    'trips:view',
     'trips:drive',
     'tracking:own',
-    'vehicles:view',
     'fuel:submit',
     'maintenance:report',
     'ai:view',
@@ -202,6 +201,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'settings:profile',
   ],
 
+  // Customers only see their own shipments (customer_user_id on trips).
   customer: [
     'dashboard:view',
     'shipments:track',
@@ -237,4 +237,19 @@ export function can(roles: UserRole[] | null | undefined, permission: Permission
 /** Convenience: does the user hold at least one of the required permissions? */
 export function canAny(roles: UserRole[] | null | undefined, permissions: Permission[]): boolean {
   return permissions.some((permission) => can(roles, permission));
+}
+
+/**
+ * True when the user may see the whole company fleet (not just own rows).
+ * Drivers / customers with only *:own / drive / track get scoped lists.
+ */
+export function hasCompanyWideFleetAccess(roles: UserRole[] | null | undefined): boolean {
+  return canAny(roles, [
+    'trips:manage',
+    'trips:view',
+    'tracking:view',
+    'vehicles:manage',
+    'drivers:view',
+    'company:manage',
+  ]);
 }

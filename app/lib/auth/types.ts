@@ -6,6 +6,8 @@ export type Company = {
   id: string;
   name: string;
   status: 'active' | 'suspended';
+  /** Public URL path, e.g. /uploads/companies/{id}/logo.png */
+  logoUrl: string | null;
 };
 
 export type AuthUser = {
@@ -69,6 +71,7 @@ export type DbCompany = {
   id: string;
   name: string;
   status: 'active' | 'suspended';
+  logo_url: string | null;
   created_at: Date;
   updated_at: Date;
 };
