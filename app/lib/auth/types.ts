@@ -18,6 +18,11 @@ export type AuthUser = {
   role: UserRole | null;
   /** All roles assigned to this user */
   roles: UserRole[];
+  /**
+   * Effective permissions for this user in their tenant
+   * (defaults + role overrides + enabled flags). Clients should gate UI with this.
+   */
+  permissions: string[];
   /** Tenant the user belongs to (null for platform-level roles like super_admin) */
   companyId: string | null;
   company: Company | null;

@@ -21,6 +21,11 @@ export type Vehicle = {
   odometer: number;
   health: number;
   nextService: string;
+  /** Live GPS from the driver’s app (null when never reported). */
+  lat: number | null;
+  lng: number | null;
+  heading: number | null;
+  locationUpdatedAt: string | null;
 };
 
 export type Driver = {
@@ -130,6 +135,11 @@ export async function ensureFleetTables(force = false) {
   // Own-data links (auto-migrate older installs).
   await ensureColumn('drivers', 'user_id', 'CHAR(36) NULL');
   await ensureColumn('trips', 'customer_user_id', 'CHAR(36) NULL');
+  // Live GPS from driver mobile app.
+  await ensureColumn('vehicles', 'lat', 'DOUBLE NULL');
+  await ensureColumn('vehicles', 'lng', 'DOUBLE NULL');
+  await ensureColumn('vehicles', 'heading', 'DOUBLE NULL');
+  await ensureColumn('vehicles', 'location_updated_at', 'TIMESTAMP NULL');
 
   fleetTablesReady = true;
 }
@@ -168,6 +178,12 @@ function toVehicle(row: any): Vehicle {
     odometer: row.odometer,
     health: row.health,
     nextService: row.next_service,
+    lat: row.lat != null ? Number(row.lat) : null,
+    lng: row.lng != null ? Number(row.lng) : null,
+    heading: row.heading != null ? Number(row.heading) : null,
+    locationUpdatedAt: row.location_updated_at
+      ? new Date(row.location_updated_at).toISOString()
+      : null,
   };
 }
 
@@ -246,6 +262,61 @@ export async function findDriverByUserId(
     [companyId, userId],
   );
   return row ? toDriver(row) : null;
+}
+
+/** Active trip the driver is currently running (in transit or delayed). */
+export async function findActiveTripForDriver(
+  companyId: string,
+  driverId: string,
+): Promise<Trip | null> {
+  const row = await queryOne<any>(
+    `SELECT * FROM trips
+     WHERE company_id = ? AND driver_id = ? AND status IN ('in-transit', 'delayed')
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [companyId, driverId],
+  );
+  return row ? toTrip(row) : null;
+}
+
+/**
+ * Persist live GPS from the driver’s phone onto the assigned vehicle.
+ */
+export async function updateVehicleLiveLocation(
+  companyId: string,
+  vehicleId: string,
+  input: { lat: number; lng: number; heading?: number | null; speed?: number | null },
+): Promise<Vehicle | null> {
+  const speed =
+    input.speed != null && Number.isFinite(input.speed)
+      ? Math.max(0, Math.round(input.speed))
+      : undefined;
+  const heading =
+    input.heading != null && Number.isFinite(input.heading) ? input.heading : null;
+
+  if (speed !== undefined) {
+    await query(
+      `UPDATE vehicles
+       SET lat = ?, lng = ?, heading = ?, speed = ?,
+           location = 'Live tracking',
+           status = CASE WHEN status = 'maintenance' THEN status ELSE 'moving' END,
+           location_updated_at = CURRENT_TIMESTAMP
+       WHERE company_id = ? AND id = ?`,
+      [input.lat, input.lng, heading, speed, companyId, vehicleId],
+    );
+  } else {
+    await query(
+      `UPDATE vehicles
+       SET lat = ?, lng = ?, heading = ?,
+           location = 'Live tracking',
+           status = CASE WHEN status = 'maintenance' THEN status ELSE 'moving' END,
+           location_updated_at = CURRENT_TIMESTAMP
+       WHERE company_id = ? AND id = ?`,
+      [input.lat, input.lng, heading, companyId, vehicleId],
+    );
+  }
+
+  return getVehicle(companyId, vehicleId);
 }
 
 export async function getTrip(companyId: string, id: string): Promise<Trip | null> {
@@ -423,6 +494,74 @@ export async function updateTripStatus(
     id,
   ]);
   return rows[0] ? toTrip(rows[0]) : null;
+}
+
+export async function updateTrip(
+  companyId: string,
+  id: string,
+  input: Partial<{
+    origin: string;
+    destination: string;
+    vehicleId: string | null;
+    driverId: string | null;
+    customerUserId: string | null;
+    cargo: string;
+    distance: number;
+    departAt: string;
+    arriveAt: string;
+    status: Trip['status'];
+    progress: number;
+  }>,
+): Promise<Trip | null> {
+  const existing = await getTrip(companyId, id);
+  if (!existing) return null;
+
+  const next = {
+    origin: input.origin ?? existing.origin,
+    destination: input.destination ?? existing.destination,
+    vehicleId: input.vehicleId !== undefined ? input.vehicleId : existing.vehicleId,
+    driverId: input.driverId !== undefined ? input.driverId : existing.driverId,
+    customerUserId:
+      input.customerUserId !== undefined ? input.customerUserId : existing.customerUserId,
+    cargo: input.cargo ?? existing.cargo,
+    distance: input.distance ?? existing.distance,
+    departAt: input.departAt ?? existing.departAt,
+    arriveAt: input.arriveAt ?? existing.arriveAt,
+    status: input.status ?? existing.status,
+    progress: input.progress ?? existing.progress,
+  };
+
+  await query(
+    `UPDATE trips SET
+      vehicle_id = ?, driver_id = ?, customer_user_id = ?,
+      origin = ?, destination = ?, status = ?, progress = ?,
+      depart_at = ?, arrive_at = ?, distance = ?, cargo = ?
+     WHERE company_id = ? AND id = ?`,
+    [
+      next.vehicleId,
+      next.driverId,
+      next.customerUserId,
+      next.origin,
+      next.destination,
+      next.status,
+      next.progress,
+      next.departAt,
+      next.arriveAt,
+      next.distance,
+      next.cargo,
+      companyId,
+      id,
+    ],
+  );
+
+  return getTrip(companyId, id);
+}
+
+export async function deleteTrip(companyId: string, id: string): Promise<boolean> {
+  const existing = await getTrip(companyId, id);
+  if (!existing) return false;
+  await query(`DELETE FROM trips WHERE company_id = ? AND id = ?`, [companyId, id]);
+  return true;
 }
 
 /* ------------------------------------------------------------------ */

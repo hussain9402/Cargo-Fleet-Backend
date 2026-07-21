@@ -1,6 +1,8 @@
-"use client";
+'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useAdminTheme } from './AdminThemeProvider';
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
@@ -39,7 +41,7 @@ export function StatCard({
   return (
     <Card className="relative overflow-hidden p-5">
       <div className="flex items-start justify-between">
-        <p className="text-sm font-medium text-slate-400">{label}</p>
+        <p className="text-[15px] font-medium text-slate-400">{label}</p>
         {icon && (
           <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-base ${a.chip}`}>
             {icon}
@@ -48,7 +50,7 @@ export function StatCard({
       </div>
       <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{value}</p>
       {hint && (
-        <span className={`mt-2 inline-flex items-center gap-1 text-xs font-medium ${a.ring}`}>
+        <span className={`mt-2 inline-flex items-center gap-1 text-sm font-medium ${a.ring}`}>
           <span className={`h-1.5 w-1.5 rounded-full ${a.chip}`} />
           {hint}
         </span>
@@ -83,7 +85,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-[15px] font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`}
     >
       {children}
     </button>
@@ -113,10 +115,12 @@ export function Modal({
   title,
   onClose,
   children,
+  size = 'md',
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  size?: 'md' | 'lg';
 }) {
   return (
     <div
@@ -124,7 +128,9 @@ export function Modal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-brand-800 shadow-2xl"
+        className={`w-full overflow-hidden rounded-2xl border border-white/10 bg-brand-800 shadow-2xl ${
+          size === 'lg' ? 'max-w-3xl' : 'max-w-lg'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
@@ -144,15 +150,179 @@ export function Modal({
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-slate-300">{label}</span>
+    <div className="block">
+      <span className="mb-1 block text-sm font-medium text-slate-300">{label}</span>
       {children}
-    </label>
+    </div>
   );
 }
 
 export const inputClass =
-  'w-full rounded-lg border border-white/10 bg-brand-900/50 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-brand-600/50 focus:ring-2 focus:ring-brand-600/20';
+  'w-full rounded-lg border border-white/10 bg-brand-900/50 px-3 py-2 text-sm text-slate-100 shadow-none outline-none ring-0 placeholder-slate-500 transition focus:border-brand-600/50 focus:outline-none focus:ring-2 focus:ring-brand-600/20';
+
+export type SelectOption = { value: string; label: string };
+
+export function Select({
+  value,
+  onChange,
+  options,
+  className = '',
+  disabled,
+  placeholder = 'Select…',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  className?: string;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  const { resolved } = useAdminTheme();
+  const light = resolved === 'light';
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(
+    null,
+  );
+
+  const selected = options.find((o) => o.value === value);
+
+  function updatePosition() {
+    const el = triggerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+    const preferBelow = spaceBelow >= 160 || spaceBelow >= spaceAbove;
+    const maxHeight = Math.min(280, Math.max(120, preferBelow ? spaceBelow : spaceAbove));
+    setPos({
+      top: preferBelow ? rect.bottom + 6 : Math.max(8, rect.top - maxHeight - 6),
+      left: rect.left,
+      width: Math.max(rect.width, 160),
+      maxHeight,
+    });
+  }
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    function onScroll() {
+      updatePosition();
+    }
+    window.addEventListener('resize', onScroll);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('resize', onScroll);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const menu =
+    open &&
+    pos &&
+    typeof document !== 'undefined' &&
+    createPortal(
+      <div
+        ref={menuRef}
+        id={listId}
+        role="listbox"
+        style={{
+          position: 'fixed',
+          top: pos.top,
+          left: pos.left,
+          width: pos.width,
+          maxHeight: pos.maxHeight,
+          zIndex: 80,
+        }}
+        className={`overflow-y-auto rounded-xl border py-1 shadow-2xl ${
+          light
+            ? 'border-slate-200 bg-white text-slate-800'
+            : 'border-white/10 bg-brand-800 text-slate-100'
+        }`}
+      >
+        {options.length === 0 ? (
+          <p className="px-3 py-2 text-sm text-slate-500">No options</p>
+        ) : (
+          options.map((opt) => {
+            const active = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition ${
+                  active
+                    ? light
+                      ? 'bg-brand-50 font-semibold text-brand-700'
+                      : 'bg-brand-600/20 font-semibold text-brand-200'
+                    : light
+                      ? 'text-slate-700 hover:bg-slate-50'
+                      : 'text-slate-200 hover:bg-white/[0.06]'
+                }`}
+              >
+                <span className="truncate">{opt.label}</span>
+                {active && <span className="ml-2 text-brand-500">✓</span>}
+              </button>
+            );
+          })
+        )}
+      </div>,
+      document.body,
+    );
+
+  return (
+    <div className={`relative ${className.includes('w-auto') ? 'inline-block min-w-[11rem]' : 'w-full'}`}>
+      <button
+        ref={triggerRef}
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        onClick={() => setOpen((v) => !v)}
+        className={`${inputClass} flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
+          open ? 'border-brand-600/50 ring-2 ring-brand-600/20' : ''
+        } ${className}`}
+      >
+        <span className={`truncate ${selected ? '' : 'text-slate-500'}`}>
+          {selected?.label ?? placeholder}
+        </span>
+        <span
+          className={`shrink-0 text-[10px] text-slate-500 transition ${open ? 'rotate-180' : ''}`}
+          aria-hidden
+        >
+          ▼
+        </span>
+      </button>
+      {menu}
+    </div>
+  );
+}
 
 export function EmptyState({ message }: { message: string }) {
   return (
@@ -160,11 +330,11 @@ export function EmptyState({ message }: { message: string }) {
       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.04] text-slate-500">
         ∅
       </div>
-      <p className="text-sm text-slate-500">{message}</p>
+      <p className="text-[15px] text-slate-500">{message}</p>
     </div>
   );
 }
 
 /* Shared table styles for consistent dark tables */
-export const theadClass = 'border-b border-white/[0.06] text-[11px] uppercase tracking-wider text-slate-500';
+export const theadClass = 'border-b border-white/[0.06] text-xs uppercase tracking-wider text-slate-500';
 export const rowClass = 'border-b border-white/[0.04] transition-colors last:border-0 hover:bg-white/[0.02]';

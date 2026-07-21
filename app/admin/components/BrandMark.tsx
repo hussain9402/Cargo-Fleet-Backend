@@ -2,23 +2,26 @@
 
 import { useEffect } from 'react';
 import type { AdminUser } from '../lib/api';
+import { useAdminTheme } from './AdminThemeProvider';
 
 const PLATFORM_NAME = 'FleetFlow';
 const PLATFORM_FAVICON = '/favicon.png';
-const PLATFORM_LOGO = '/brand/logo-dark.png';
+const PLATFORM_LOGO_DARK = '/brand/logo-dark.png';
+const PLATFORM_LOGO_LIGHT = '/brand/logo-light.png';
 
-export function getBrand(user: AdminUser | null) {
+export function getBrand(user: AdminUser | null, theme: 'light' | 'dark' = 'dark') {
+  const platformLogo = theme === 'light' ? PLATFORM_LOGO_LIGHT : PLATFORM_LOGO_DARK;
   if (user?.company?.name) {
     return {
       name: user.company.name,
-      logoUrl: user.company.logoUrl || PLATFORM_LOGO,
+      logoUrl: user.company.logoUrl || platformLogo,
       faviconUrl: user.company.logoUrl || PLATFORM_FAVICON,
       isPlatform: false,
     };
   }
   return {
     name: PLATFORM_NAME,
-    logoUrl: PLATFORM_LOGO,
+    logoUrl: platformLogo,
     faviconUrl: PLATFORM_FAVICON,
     isPlatform: true,
   };
@@ -42,7 +45,8 @@ function applyDocumentBrand(name: string, faviconUrl: string) {
 
 /** Sets document title + favicon from the signed-in company brand. */
 export function useCompanyBrand(user: AdminUser | null, _pageTitle?: string) {
-  const brand = getBrand(user);
+  const { resolved } = useAdminTheme();
+  const brand = getBrand(user, resolved);
   const companyKey = user?.company?.id ?? 'platform';
   const companyName = user?.company?.name ?? null;
   const logoUrl = user?.company?.logoUrl ?? null;
@@ -70,7 +74,8 @@ export function BrandMark({
   user: AdminUser | null;
   className?: string;
 }) {
-  const brand = getBrand(user);
+  const { resolved } = useAdminTheme();
+  const brand = getBrand(user, resolved);
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={brand.logoUrl} alt={brand.name} className={className} />

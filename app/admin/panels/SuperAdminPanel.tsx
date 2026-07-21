@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ROLES } from '@/app/lib/rbac/permissions';
 import { api, roleLabel, type Company, type ManagedUser } from '../lib/api';
-import { Badge, Button, Card, EmptyState, Field, inputClass, Modal, StatCard } from '../components/ui';
+import { Badge, Button, Card, EmptyState, Field, inputClass, Modal, Select, StatCard } from '../components/ui';
 import { AreaChart, BarList, Donut } from '../components/charts';
+import { DashboardSkeleton, TableSkeleton } from '../components/skeletons';
 
 type Section = 'overview' | 'companies' | 'users' | 'audit';
 
@@ -54,7 +55,10 @@ export function SuperAdminPanel({ section }: { section: Section }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
 
-  if (loading) return <div className="py-16 text-center text-slate-400">Loading…</div>;
+  if (loading) {
+    if (section === 'overview') return <DashboardSkeleton />;
+    return <TableSkeleton />;
+  }
   if (error)
     return (
       <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-300">{error}</div>
@@ -280,14 +284,15 @@ function Users({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold">Users</h2>
         <div className="flex items-center gap-2">
-          <select className={inputClass + ' w-auto'} value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="all">All companies</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            className="w-auto"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: 'All companies' },
+              ...companies.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
           <Button onClick={() => setShowCreate(true)}>+ New user</Button>
         </div>
       </div>
@@ -501,23 +506,21 @@ function ManageUserModal({
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Role">
-              <select className={inputClass} value={role} onChange={(e) => setRole(e.target.value)}>
-                {ASSIGNABLE_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {roleLabel(r)}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={role}
+                onChange={setRole}
+                options={ASSIGNABLE_ROLES.map((r) => ({ value: r, label: roleLabel(r) }))}
+              />
             </Field>
             <Field label="Status">
-              <select
-                className={inputClass}
+              <Select
                 value={status}
-                onChange={(e) => setStatus(e.target.value as 'active' | 'suspended')}
-              >
-                <option value="active">Active</option>
-                <option value="suspended">Suspended (locked)</option>
-              </select>
+                onChange={(v) => setStatus(v as 'active' | 'suspended')}
+                options={[
+                  { value: 'active', label: 'Active' },
+                  { value: 'suspended', label: 'Suspended (locked)' },
+                ]}
+              />
             </Field>
           </div>
         )}
@@ -613,23 +616,20 @@ export function CreateUserModal({
         </Field>
         {requireCompany && companies && (
           <Field label="Company">
-            <select className={inputClass} value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={companyId}
+              onChange={setCompanyId}
+              options={companies.map((c) => ({ value: c.id, label: c.name }))}
+              placeholder="Select company"
+            />
           </Field>
         )}
         <Field label="Role">
-          <select className={inputClass} value={role} onChange={(e) => setRole(e.target.value)}>
-            {ASSIGNABLE_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {roleLabel(r)}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={role}
+            onChange={setRole}
+            options={ASSIGNABLE_ROLES.map((r) => ({ value: r, label: roleLabel(r) }))}
+          />
         </Field>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>

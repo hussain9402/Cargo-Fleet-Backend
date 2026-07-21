@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api, type AdminUser, type DashboardSummary, type ManagedUser } from '../lib/api';
 import { Badge, Button, Card, EmptyState, Field, inputClass, StatCard } from '../components/ui';
 import { AreaChart, BarList, Donut, Gauge } from '../components/charts';
+import { DashboardSkeleton, TableSkeleton } from '../components/skeletons';
 import { CreateUserModal, UsersTable } from './SuperAdminPanel';
 
 type Section = 'overview' | 'users' | 'vehicles' | 'drivers' | 'trips' | 'profile';
@@ -73,8 +74,8 @@ function useResource<T>(path: string, key: string) {
   return { data, loading, error, reload };
 }
 
-function Loading() {
-  return <div className="py-16 text-center text-slate-400">Loading…</div>;
+function Loading({ variant = 'table' }: { variant?: 'dashboard' | 'table' }) {
+  return variant === 'dashboard' ? <DashboardSkeleton /> : <TableSkeleton />;
 }
 function ErrorBox({ message }: { message: string }) {
   return (
@@ -102,7 +103,7 @@ function Overview() {
     })();
   }, []);
 
-  if (loading) return <Loading />;
+  if (loading) return <Loading variant="dashboard" />;
   if (error) return <ErrorBox message={error} />;
   if (!summary) return <EmptyState message="No fleet data for this company yet." />;
 

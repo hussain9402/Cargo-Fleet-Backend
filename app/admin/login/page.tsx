@@ -17,8 +17,11 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (new URLSearchParams(window.location.search).get('reset') === '1') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reset') === '1') {
       setNotice('Password updated. You can sign in with your new password.');
+    } else if (params.get('reason') === 'session') {
+      setNotice('Your session expired. Please sign in again.');
     }
   }, []);
 

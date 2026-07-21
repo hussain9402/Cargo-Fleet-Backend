@@ -73,7 +73,16 @@ export type ContactMessage = {
 
 export type RoleInfo = {
   role: UserRole;
+  label: string;
+  description: string;
+  defaultLabel: string;
+  defaultDescription: string;
   permissions: string[];
+  defaults: string[];
+  enabled: boolean;
+  isCustomized: boolean;
+  inheritedFromPlatform?: boolean;
+  editable: boolean;
   userCount: number;
 };
 
@@ -88,9 +97,16 @@ const TOKEN_KEY = 'cf_admin_access';
 const REFRESH_KEY = 'cf_admin_refresh';
 const USER_KEY = 'cf_admin_user';
 
+const LOGIN_PATH = '/admin/login';
+
 export function getToken() {
   if (typeof window === 'undefined') return null;
   return window.localStorage.getItem(TOKEN_KEY);
+}
+
+function getRefreshToken() {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(REFRESH_KEY);
 }
 
 export function getStoredUser(): AdminUser | null {
@@ -121,6 +137,18 @@ export function clearSession() {
   window.localStorage.removeItem(USER_KEY);
 }
 
+/** Clear session and send the user to login (no-op if already there). */
+export function forceLogout(reason?: string) {
+  clearSession();
+  if (typeof window === 'undefined') return;
+  const path = window.location.pathname;
+  if (path.startsWith('/admin/login') || path.startsWith('/admin/forgot-password') || path.startsWith('/admin/signup')) {
+    return;
+  }
+  const q = reason ? `?reason=${encodeURIComponent(reason)}` : '?reason=session';
+  window.location.replace(`${LOGIN_PATH}${q}`);
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -129,16 +157,100 @@ export class ApiError extends Error {
   }
 }
 
+/** Read JWT `exp` (ms) without verifying — used only to schedule refresh. */
+export function getAccessTokenExpiryMs(token: string | null = getToken()): number | null {
+  if (!token) return null;
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof json.exp === 'number' ? json.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch('/api/v1/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return false;
+      const user = (data as { user: AdminUser }).user;
+      const accessToken = (data as { accessToken: string }).accessToken;
+      const nextRefresh = (data as { refreshToken: string }).refreshToken;
+      if (!user || !accessToken || !nextRefresh) return false;
+      setSession(user, accessToken, nextRefresh);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+/** Try to renew the access token; logs out if refresh is impossible. */
+export async function ensureFreshSession(): Promise<boolean> {
+  if (!getToken() && !getRefreshToken()) {
+    forceLogout('session');
+    return false;
+  }
+
+  const exp = getAccessTokenExpiryMs();
+  // Renew if missing exp, already expired, or expiring within 90s
+  if (exp && exp - Date.now() > 90_000) return true;
+
+  const ok = await refreshAccessToken();
+  if (!ok) {
+    forceLogout('session');
+    return false;
+  }
+  return true;
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const res = await fetch(`/api/v1${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers as Record<string, string> | undefined),
-    },
-  });
+  async function once(token: string | null): Promise<Response> {
+    return fetch(`/api/v1${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers as Record<string, string> | undefined),
+      },
+    });
+  }
+
+  let res = await once(getToken());
+
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      res = await once(getToken());
+    } else {
+      forceLogout('session');
+      throw new ApiError('Session expired', 401);
+    }
+  }
+
+  if (res.status === 401) {
+    forceLogout('session');
+    throw new ApiError('Session expired', 401);
+  }
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new ApiError((data as { error?: string }).error ?? 'Request failed', res.status);

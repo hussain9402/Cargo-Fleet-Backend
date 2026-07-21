@@ -9,6 +9,7 @@ import {
 import { sendPasswordResetEmail, sendSignupOtpEmail, isSmtpConfigured } from './mail';
 import { verifyGoogleIdToken } from './google';
 import { isPlatformRole, type UserRole } from '../rbac/permissions';
+import { PLATFORM_ROLE_SCOPE, resolvePermissionsForRoles } from '../rbac/roleOverrides';
 import type {
   AuthResponse,
   AuthUser,
@@ -112,6 +113,9 @@ export async function toAuthUser(user: DbUser): Promise<AuthUser> {
   const roles = await getUserRoles(user.id);
   const role = await getPrimaryUserRole(user.id);
   const company = user.company_id ? await findCompanyById(user.company_id) : null;
+  const platform = roles.some((r) => isPlatformRole(r));
+  const scope = platform ? PLATFORM_ROLE_SCOPE : user.company_id;
+  const permissions = await resolvePermissionsForRoles(scope, roles);
 
   return {
     id: user.id,
@@ -119,6 +123,7 @@ export async function toAuthUser(user: DbUser): Promise<AuthUser> {
     name: user.name,
     role,
     roles,
+    permissions,
     companyId: user.company_id,
     company,
   };

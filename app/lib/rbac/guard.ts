@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { getAuthPayload } from '../auth/request';
 import { ensureAuthTables, findUserById, getUserRoles, getPrimaryUserRole } from '../auth/users';
 import { errorResponse } from '../auth/response';
-import { can, isPlatformRole, type Permission, type UserRole } from './permissions';
+import { isPlatformRole, type Permission, type UserRole } from './permissions';
+import { PLATFORM_ROLE_SCOPE, rolesCan } from './roleOverrides';
 
 export type AuthContext = {
   userId: string;
@@ -44,12 +45,12 @@ export async function requirePermission(
 
   const roles = await getUserRoles(user.id);
   const primaryRole = await getPrimaryUserRole(user.id);
+  const platform = roles.some((role) => isPlatformRole(role));
+  const scope = platform ? PLATFORM_ROLE_SCOPE : user.company_id;
 
-  if (permission && !can(roles, permission)) {
+  if (permission && !(await rolesCan(scope, roles, permission))) {
     return { ok: false, response: errorResponse('Forbidden', 403) };
   }
-
-  const platform = roles.some((role) => isPlatformRole(role));
 
   return {
     ok: true,

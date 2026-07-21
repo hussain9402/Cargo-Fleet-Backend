@@ -269,7 +269,10 @@ export async function listBroadcasts(scope: string): Promise<Broadcast[]> {
     body: r.body,
     audience: r.audience,
     createdBy: r.created_by,
-    createdAt: r.created_at,
+    createdAt:
+      r.created_at instanceof Date
+        ? r.created_at.toISOString()
+        : String(r.created_at ?? ''),
   }));
 }
 

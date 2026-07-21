@@ -14,6 +14,288 @@
   --brand-accent: #1a52c4;
   --admin-blue: #1a52c4;
   --admin-blue-soft: rgba(26, 82, 196, 0.12);
+  --admin-bg: #010000;
+  --admin-bg-elevated: #121212;
+  --admin-sidebar: #000000;
+  color-scheme: dark;
+}
+
+/* Light admin console — remaps the dark utility palette used throughout /admin */
+.admin-theme[data-theme='light'] {
+  --admin-bg: #f0f3fa;
+  --admin-bg-elevated: #ffffff;
+  --admin-sidebar: #e8edf7;
+  --admin-blue-soft: rgba(26, 82, 196, 0.1);
+  color-scheme: light;
+  background-color: #f0f3fa !important;
+  color: #1e293b !important;
+}
+
+.admin-theme[data-theme='light'] .bg-brand-900,
+.admin-theme[data-theme='light'] .bg-brand-950 {
+  background-color: #f0f3fa !important;
+}
+
+.admin-theme[data-theme='light'] .bg-brand-800,
+.admin-theme[data-theme='light'] .bg-brand-800\/80 {
+  background-color: #ffffff !important;
+}
+
+.admin-theme[data-theme='light'] .bg-brand-900\/40 {
+  background-color: #e4eaf6 !important;
+}
+
+.admin-theme[data-theme='light'] .bg-brand-900\/50,
+.admin-theme[data-theme='light'] .bg-brand-900\/80,
+.admin-theme[data-theme='light'] .bg-brand-950\/40,
+.admin-theme[data-theme='light'] .bg-brand-950\/50,
+.admin-theme[data-theme='light'] .bg-brand-950\/60 {
+  background-color: #eef2f9 !important;
+}
+
+.admin-theme[data-theme='light'] .from-brand-800 {
+  --tw-gradient-from: #ffffff var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.admin-theme[data-theme='light'] .to-brand-900\/40 {
+  --tw-gradient-to: #e4eaf6 var(--tw-gradient-to-position) !important;
+}
+
+.admin-theme[data-theme='light'] .from-brand-600\/10 {
+  --tw-gradient-from: rgb(26 82 196 / 0.08) var(--tw-gradient-from-position) !important;
+}
+
+.admin-theme[data-theme='light'] .text-white {
+  color: #0b1220 !important;
+}
+
+.admin-theme[data-theme='light'] .text-white\/70 {
+  color: rgb(15 23 42 / 0.55) !important;
+}
+
+.admin-theme[data-theme='light'] .hover\:text-white:hover {
+  color: #0b1220 !important;
+}
+
+/* Solid blue surfaces keep light text */
+.admin-theme[data-theme='light'] .bg-brand-600,
+.admin-theme[data-theme='light'] .bg-brand-500,
+.admin-theme[data-theme='light'] .bg-brand-400 {
+  color: #ffffff !important;
+}
+
+.admin-theme[data-theme='light'] .bg-brand-600 *,
+.admin-theme[data-theme='light'] .bg-brand-500 *,
+.admin-theme[data-theme='light'] .bg-brand-400 * {
+  color: #ffffff !important;
+}
+
+.admin-theme[data-theme='light'] .bg-brand-600 .text-white\/70,
+.admin-theme[data-theme='light'] .bg-brand-500 .text-white\/70 {
+  color: rgb(255 255 255 / 0.75) !important;
+}
+
+.admin-theme[data-theme='light'] .bg-brand-600 .bg-white\/15,
+.admin-theme[data-theme='light'] .bg-brand-500 .bg-white\/15 {
+  background-color: rgb(255 255 255 / 0.18) !important;
+}
+
+.admin-theme[data-theme='light'] .bg-gradient-to-br.from-brand-500,
+.admin-theme[data-theme='light'] .bg-gradient-to-br.from-brand-600,
+.admin-theme[data-theme='light'] .from-brand-500,
+.admin-theme[data-theme='light'] .from-brand-600 {
+  color: #ffffff !important;
+}
+
+.admin-theme[data-theme='light'] .bg-gradient-to-br.from-brand-500 *,
+.admin-theme[data-theme='light'] .bg-gradient-to-br.from-brand-600 * {
+  color: #ffffff !important;
+}
+
+.admin-theme[data-theme='light'] .text-slate-100 {
+  color: #0f172a !important;
+}
+
+.admin-theme[data-theme='light'] .text-slate-200 {
+  color: #1e293b !important;
+}
+
+.admin-theme[data-theme='light'] .text-slate-300 {
+  color: #334155 !important;
+}
+
+.admin-theme[data-theme='light'] .text-slate-400 {
+  color: #64748b !important;
+}
+
+.admin-theme[data-theme='light'] .text-slate-500,
+.admin-theme[data-theme='light'] .text-slate-600 {
+  color: #64748b !important;
+}
+
+.admin-theme[data-theme='light'] .text-brand-300,
+.admin-theme[data-theme='light'] .text-brand-400 {
+  color: #1a52c4 !important;
+}
+
+/* Soft status text on light backgrounds */
+.admin-theme[data-theme='light'] .text-emerald-300,
+.admin-theme[data-theme='light'] .text-emerald-400,
+.admin-theme[data-theme='light'] .text-emerald-400\/90 {
+  color: #047857 !important;
+}
+
+.admin-theme[data-theme='light'] .text-rose-300 {
+  color: #e11d48 !important;
+}
+
+.admin-theme[data-theme='light'] .text-amber-300 {
+  color: #b45309 !important;
+}
+
+.admin-theme[data-theme='light'] .border-white\/\[0\.06\],
+.admin-theme[data-theme='light'] .border-white\/\[0\.04\],
+.admin-theme[data-theme='light'] .border-white\/10,
+.admin-theme[data-theme='light'] .border-white\/\[0\.08\],
+.admin-theme[data-theme='light'] .border-white\/15,
+.admin-theme[data-theme='light'] .border-white\/20 {
+  border-color: rgb(15 23 42 / 0.1) !important;
+}
+
+.admin-theme[data-theme='light'] .border-dashed.border-brand-500\/30,
+.admin-theme[data-theme='light'] .border-brand-500\/30 {
+  border-color: rgb(26 82 196 / 0.35) !important;
+}
+
+.admin-theme[data-theme='light'] .bg-white\/\[0\.02\],
+.admin-theme[data-theme='light'] .bg-white\/\[0\.03\],
+.admin-theme[data-theme='light'] .bg-white\/\[0\.04\],
+.admin-theme[data-theme='light'] .bg-white\/\[0\.05\],
+.admin-theme[data-theme='light'] .bg-white\/\[0\.06\] {
+  background-color: rgb(15 23 42 / 0.04) !important;
+}
+
+.admin-theme[data-theme='light'] .hover\:bg-white\/\[0\.04\]:hover,
+.admin-theme[data-theme='light'] .hover\:bg-white\/\[0\.05\]:hover,
+.admin-theme[data-theme='light'] .hover\:bg-white\/\[0\.06\]:hover,
+.admin-theme[data-theme='light'] .hover\:bg-white\/\[0\.08\]:hover,
+.admin-theme[data-theme='light'] .group-hover\:bg-white\/\[0\.06\]:hover {
+  background-color: rgb(15 23 42 / 0.06) !important;
+}
+
+.admin-theme[data-theme='light'] .hover\:border-white\/15:hover,
+.admin-theme[data-theme='light'] .hover\:border-white\/20:hover {
+  border-color: rgb(15 23 42 / 0.16) !important;
+}
+
+.admin-theme[data-theme='light'] .hover\:text-slate-200:hover,
+.admin-theme[data-theme='light'] .group-hover\:text-slate-200:hover {
+  color: #0f172a !important;
+}
+
+.admin-theme[data-theme='light'] .bg-brand-600\/8,
+.admin-theme[data-theme='light'] .bg-brand-600\/10,
+.admin-theme[data-theme='light'] .bg-brand-600\/12,
+.admin-theme[data-theme='light'] .bg-brand-600\/15,
+.admin-theme[data-theme='light'] .bg-brand-500\/10,
+.admin-theme[data-theme='light'] .bg-brand-500\/15,
+.admin-theme[data-theme='light'] .bg-brand-700\/25 {
+  background-color: rgb(26 82 196 / 0.1) !important;
+}
+
+.admin-theme[data-theme='light'] .ring-white\/10,
+.admin-theme[data-theme='light'] .ring-brand-600\/20,
+.admin-theme[data-theme='light'] .ring-brand-600\/25,
+.admin-theme[data-theme='light'] .ring-brand-600\/30,
+.admin-theme[data-theme='light'] .ring-brand-600\/40,
+.admin-theme[data-theme='light'] .ring-brand-500\/20,
+.admin-theme[data-theme='light'] .ring-brand-500\/25 {
+  --tw-ring-color: rgb(26 82 196 / 0.28) !important;
+}
+
+.admin-theme[data-theme='light'] .border-brand-600\/50,
+.admin-theme[data-theme='light'] .border-brand-500 {
+  border-color: rgb(26 82 196 / 0.45) !important;
+}
+
+.admin-theme[data-theme='light'] .placeholder-slate-500::placeholder {
+  color: #94a3b8 !important;
+}
+
+.admin-theme[data-theme='light'] .shadow-lg,
+.admin-theme[data-theme='light'] .shadow-md {
+  --tw-shadow-color: rgb(15 23 42 / 0.08) !important;
+}
+
+.admin-theme[data-theme='light'] .shadow-\[0_1px_0_0_rgba\(255\,255\,255\,0\.03\)_inset\,0_10px_30px_-15px_rgba\(0\,0\,0\,0\.6\)\] {
+  box-shadow: 0 1px 0 0 rgb(255 255 255 / 0.9) inset, 0 12px 28px -16px rgb(15 23 42 / 0.14) !important;
+}
+
+.admin-theme[data-theme='light'] .shadow-black\/10 {
+  --tw-shadow-color: rgb(15 23 42 / 0.08) !important;
+}
+
+/* Soft alert panels */
+.admin-theme[data-theme='light'] .bg-emerald-500\/10 {
+  background-color: rgb(16 185 129 / 0.12) !important;
+}
+
+.admin-theme[data-theme='light'] .bg-rose-500\/10 {
+  background-color: rgb(244 63 94 / 0.1) !important;
+}
+
+.admin-theme[data-theme='light'] .bg-amber-500\/10,
+.admin-theme[data-theme='light'] .bg-amber-500\/15 {
+  background-color: rgb(245 158 11 / 0.12) !important;
+}
+
+.admin-theme[data-theme='light'] .border-emerald-500\/30 {
+  border-color: rgb(16 185 129 / 0.35) !important;
+}
+
+.admin-theme[data-theme='light'] .border-rose-500\/30 {
+  border-color: rgb(244 63 94 / 0.3) !important;
+}
+
+/* Skeleton bones in light mode */
+.admin-theme[data-theme='light'] .bg-white\/\[0\.06\] {
+  background-color: rgb(15 23 42 / 0.07) !important;
+}
+
+/* Header search: kill default form borders in light mode */
+.admin-theme[data-theme='light'] header input[type='text'],
+.admin-theme[data-theme='light'] header input:not([type]),
+.admin-theme header input {
+  border: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+
+.admin-theme[data-theme='light'] header .border-white\/\[0\.06\] {
+  border-color: rgb(15 23 42 / 0.1) !important;
+  background-color: #ffffff !important;
+}
+
+.admin-theme[data-theme='light'] header {
+  background-color: rgb(240 243 250 / 0.92) !important;
+  border-color: rgb(15 23 42 / 0.08) !important;
+}
+
+/* Hide scrollbars in admin; scroll still works via wheel / touch / keys */
+.admin-theme,
+.admin-theme * {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge/IE */
+}
+
+.admin-theme::-webkit-scrollbar,
+.admin-theme *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent;
 }
 
 html {

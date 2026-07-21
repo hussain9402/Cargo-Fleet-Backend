@@ -4,19 +4,19 @@ import { useEffect, useState } from 'react';
 import {
   api,
   roleLabel,
-  updateStoredUser,
-  type AdminUser,
   type Broadcast,
   type Company,
   type ContactMessage,
   type ManagedUser,
   type RoleInfo,
-  type ScopeSettings,
 } from '../lib/api';
-import { Badge, Button, Card, EmptyState, Field, inputClass, Modal, StatCard } from '../components/ui';
+import { Badge, Button, Card, EmptyState, Field, inputClass, Modal, Select, StatCard } from '../components/ui';
+import { DashboardSkeleton, PanelSkeleton, TableSkeleton } from '../components/skeletons';
 
-function Loading() {
-  return <div className="py-16 text-center text-slate-400">Loading…</div>;
+function Loading({ variant = 'panel' }: { variant?: 'dashboard' | 'table' | 'panel' }) {
+  if (variant === 'dashboard') return <DashboardSkeleton />;
+  if (variant === 'table') return <TableSkeleton />;
+  return <PanelSkeleton />;
 }
 function ErrorBox({ message }: { message: string }) {
   return (
@@ -37,18 +37,112 @@ function Notice({ message }: { message: string }) {
 /* Roles & permissions                                                 */
 /* ------------------------------------------------------------------ */
 
-const ROLE_META: Record<string, { icon: string; desc: string; chip: string; ring: string }> = {
-  super_admin: { icon: '👑', desc: 'Full control across the entire platform', chip: 'bg-brand-600/12 text-brand-300', ring: 'ring-brand-600/20' },
-  company_owner: { icon: '🏢', desc: 'Owns and manages the whole company', chip: 'bg-indigo-500/15 text-indigo-300', ring: 'ring-indigo-500/20' },
-  fleet_manager: { icon: '🚚', desc: 'Manages vehicles, drivers and trips', chip: 'bg-sky-500/15 text-sky-300', ring: 'ring-sky-500/20' },
-  dispatcher: { icon: '🗺️', desc: 'Assigns routes and tracks trips', chip: 'bg-amber-500/15 text-amber-300', ring: 'ring-amber-500/20' },
-  driver_manager: { icon: '🧑‍✈️', desc: 'Oversees drivers and performance', chip: 'bg-emerald-500/15 text-emerald-300', ring: 'ring-emerald-500/20' },
-  maintenance_manager: { icon: '🔧', desc: 'Handles vehicle servicing & repairs', chip: 'bg-rose-500/15 text-rose-300', ring: 'ring-rose-500/20' },
-  finance_manager: { icon: '💰', desc: 'Billing, invoices and finance reports', chip: 'bg-brand-700/25 text-brand-300', ring: 'ring-brand-700/30' },
-  customer_support: { icon: '🎧', desc: 'Handles tickets and customer queries', chip: 'bg-sky-500/15 text-sky-300', ring: 'ring-sky-500/20' },
-  driver: { icon: '🚛', desc: 'Drives trips and reports status', chip: 'bg-indigo-500/15 text-indigo-300', ring: 'ring-indigo-500/20' },
-  customer: { icon: '📦', desc: 'Tracks shipments and invoices', chip: 'bg-white/[0.06] text-slate-300', ring: 'ring-white/10' },
+const ROLE_ICONS: Record<string, string> = {
+  super_admin: '👑',
+  company_owner: '🏢',
+  fleet_manager: '🚚',
+  dispatcher: '🗺️',
+  driver_manager: '🧑‍✈️',
+  maintenance_manager: '🔧',
+  finance_manager: '💰',
+  customer_support: '🎧',
+  driver: '🚛',
+  customer: '📦',
 };
+
+const PERMISSION_MODULES: { module: string; perms: { id: string; label: string }[] }[] = [
+  {
+    module: 'Dashboard',
+    perms: [{ id: 'dashboard:view', label: 'View dashboard' }],
+  },
+  {
+    module: 'Company',
+    perms: [
+      { id: 'company:view', label: 'View' },
+      { id: 'company:manage', label: 'Manage' },
+    ],
+  },
+  {
+    module: 'Users',
+    perms: [
+      { id: 'users:view', label: 'View' },
+      { id: 'users:manage', label: 'Manage' },
+    ],
+  },
+  {
+    module: 'Vehicles',
+    perms: [
+      { id: 'vehicles:view', label: 'View' },
+      { id: 'vehicles:manage', label: 'Manage' },
+      { id: 'vehicles:maintenance', label: 'Maintenance' },
+    ],
+  },
+  {
+    module: 'Drivers',
+    perms: [
+      { id: 'drivers:view', label: 'View' },
+      { id: 'drivers:manage', label: 'Manage' },
+    ],
+  },
+  {
+    module: 'Trips',
+    perms: [
+      { id: 'trips:view', label: 'View' },
+      { id: 'trips:manage', label: 'Manage (add / edit / delete)' },
+      { id: 'trips:drive', label: 'Drive' },
+    ],
+  },
+  {
+    module: 'Tracking',
+    perms: [
+      { id: 'tracking:view', label: 'Fleet live' },
+      { id: 'tracking:own', label: 'Own only' },
+    ],
+  },
+  {
+    module: 'Fuel',
+    perms: [
+      { id: 'fuel:view', label: 'View' },
+      { id: 'fuel:manage', label: 'Manage' },
+      { id: 'fuel:submit', label: 'Submit' },
+    ],
+  },
+  {
+    module: 'Maintenance',
+    perms: [
+      { id: 'maintenance:view', label: 'View' },
+      { id: 'maintenance:manage', label: 'Manage' },
+      { id: 'maintenance:report', label: 'Report' },
+    ],
+  },
+  {
+    module: 'Reports',
+    perms: [
+      { id: 'reports:fleet', label: 'Fleet' },
+      { id: 'reports:driver', label: 'Driver' },
+      { id: 'reports:maintenance', label: 'Maintenance' },
+      { id: 'reports:finance', label: 'Finance' },
+    ],
+  },
+  {
+    module: 'AI & Billing',
+    perms: [
+      { id: 'ai:view', label: 'AI insights' },
+      { id: 'billing:view', label: 'View billing' },
+      { id: 'billing:manage', label: 'Manage billing' },
+    ],
+  },
+  {
+    module: 'Support & other',
+    perms: [
+      { id: 'tickets:manage', label: 'Tickets' },
+      { id: 'shipments:track', label: 'Shipments' },
+      { id: 'notifications:view', label: 'Notifications' },
+      { id: 'settings:manage', label: 'Manage settings' },
+      { id: 'settings:profile', label: 'Own profile' },
+    ],
+  },
+];
 
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const prettyResource = (r: string) => r.split(/[_-]/).map(cap).join(' ');
@@ -56,6 +150,7 @@ const prettyResource = (r: string) => r.split(/[_-]/).map(cap).join(' ');
 function groupPermissions(perms: string[]): { resource: string; actions: string[] }[] {
   const map = new Map<string, string[]>();
   for (const p of perms) {
+    if (p === '*') continue;
     const [resource, action = 'access'] = p.split(':');
     if (!map.has(resource)) map.set(resource, []);
     map.get(resource)!.push(action);
@@ -67,37 +162,140 @@ export function RolesPanel() {
   const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<RoleInfo | null>(null);
+  const [label, setLabel] = useState('');
+  const [description, setDescription] = useState('');
+  const [perms, setPerms] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [editEnabled, setEditEnabled] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api<{ roles: RoleInfo[] }>('/roles');
+      setRoles(res.roles);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await api<{ roles: RoleInfo[] }>('/roles');
-        setRoles(res.roles);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    void load();
   }, []);
 
-  if (loading) return <Loading />;
+  function openEdit(r: RoleInfo) {
+    if (!r.editable) return;
+    setEditing(r);
+    setLabel(r.label);
+    setDescription(r.description);
+    setEditEnabled(r.enabled !== false);
+    setPerms(new Set(r.permissions.filter((p) => p !== '*')));
+    setSaveError(null);
+  }
+
+  function togglePerm(id: string) {
+    setPerms((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleModule(modulePerms: string[], on: boolean) {
+    setPerms((prev) => {
+      const next = new Set(prev);
+      for (const id of modulePerms) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  async function save() {
+    if (!editing) return;
+    if (perms.size === 0) {
+      setSaveError('Select at least one permission');
+      return;
+    }
+    setBusy(true);
+    setSaveError(null);
+    try {
+      await api('/roles', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          role: editing.role,
+          label: label.trim(),
+          description: description.trim(),
+          permissions: [...perms],
+          enabled: editEnabled,
+        }),
+      });
+      setNotice(`Saved ${label.trim() || roleLabel(editing.role)}`);
+      setEditing(null);
+      await load();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Unable to save');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetRole() {
+    if (!editing) return;
+    if (editing.isCustomized) {
+      if (!confirm('Reset this role to platform defaults?')) return;
+      setBusy(true);
+      setSaveError(null);
+      try {
+        await api('/roles', {
+          method: 'PATCH',
+          body: JSON.stringify({ role: editing.role, reset: true }),
+        });
+        setNotice(`Reset ${roleLabel(editing.role)} to defaults`);
+        setEditing(null);
+        await load();
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : 'Unable to reset');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    setLabel(editing.defaultLabel);
+    setDescription(editing.defaultDescription);
+    setPerms(new Set(editing.defaults.filter((p) => p !== '*')));
+  }
+
+  if (loading) return <Loading variant="table" />;
   if (error) return <ErrorBox message={error} />;
 
   const totalUsers = roles.reduce((sum, r) => sum + r.userCount, 0);
+  const customized = roles.filter((r) => r.isCustomized).length;
 
   return (
     <div className="space-y-5">
+      {notice && <Notice message={notice} />}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-white">Roles &amp; permissions</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Roles are defined by the platform. Assign them to people in the Users section.
+            Customize each role&apos;s name, description, and permissions for this workspace. Changes apply
+            immediately to API access.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <span className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-1.5 text-sm text-slate-300">
             <span className="font-semibold text-white">{roles.length}</span> roles
+          </span>
+          <span className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-1.5 text-sm text-slate-300">
+            <span className="font-semibold text-white">{customized}</span> customized
           </span>
           <span className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-1.5 text-sm text-slate-300">
             <span className="font-semibold text-white">{totalUsers}</span> assigned users
@@ -107,31 +305,45 @@ export function RolesPanel() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {roles.map((r) => {
-          const meta = ROLE_META[r.role] ?? ROLE_META.customer;
           const fullAccess = r.permissions.includes('*');
           const groups = fullAccess ? [] : groupPermissions(r.permissions);
+          const on = r.enabled !== false;
           return (
-            <Card key={r.role} className="flex flex-col p-5">
+            <Card
+              key={r.role}
+              className={`flex flex-col p-5 transition ${on ? '' : 'opacity-55'}`}
+            >
               <div className="flex items-start gap-3">
-                <span
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ring-1 ring-inset ${meta.chip} ${meta.ring}`}
-                >
-                  {meta.icon}
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-xl ring-1 ring-inset ring-white/10">
+                  {ROLE_ICONS[r.role] ?? '•'}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate font-semibold text-white">{roleLabel(r.role)}</h3>
-                  <p className="mt-0.5 text-xs leading-relaxed text-slate-400">{meta.desc}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate font-semibold text-white">{r.label}</h3>
+                    {r.isCustomized && <Badge tone="blue">Custom</Badge>}
+                    {!on && <Badge tone="amber">Off</Badge>}
+                  </div>
+                  <p className="mt-0.5 text-xs leading-relaxed text-slate-400">{r.description}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {r.userCount} {r.userCount === 1 ? 'user' : 'users'} assigned
+                  </p>
                 </div>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
-                    r.userCount > 0 ? 'bg-white/[0.06] text-slate-200 ring-white/10' : 'bg-white/[0.02] text-slate-500 ring-white/5'
-                  }`}
-                >
-                  {r.userCount} {r.userCount === 1 ? 'user' : 'users'}
-                </span>
+                {r.editable ? (
+                  <button
+                    type="button"
+                    onClick={() => openEdit(r)}
+                    className="shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    Edit
+                  </button>
+                ) : (
+                  <span className="shrink-0 rounded-full bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-inset ring-white/10">
+                    System
+                  </span>
+                )}
               </div>
 
-              <div className="mt-4 border-t border-white/[0.06] pt-4">
+              <div className="mt-4 flex-1 border-t border-white/[0.06] pt-4">
                 {fullAccess ? (
                   <div className="flex items-center gap-2 rounded-lg bg-brand-600/8 px-3 py-2.5 text-sm font-medium text-brand-300 ring-1 ring-inset ring-brand-600/20">
                     <span>✦</span> Full access to every module
@@ -141,7 +353,7 @@ export function RolesPanel() {
                     <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                       {r.permissions.length} permissions · {groups.length} modules
                     </p>
-                    <div className="space-y-1.5">
+                    <div className="max-h-40 space-y-1.5 overflow-y-auto">
                       {groups.map((g) => (
                         <div
                           key={g.resource}
@@ -168,6 +380,141 @@ export function RolesPanel() {
           );
         })}
       </div>
+
+      {editing && (
+        <Modal title={`Edit · ${editing.label}`} onClose={() => !busy && setEditing(null)} size="lg">
+          <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+            {saveError && <ErrorBox message={saveError} />}
+
+            <div
+              className={`flex items-center justify-between gap-4 rounded-xl border px-4 py-3 ${
+                editEnabled
+                  ? 'border-brand-500/30 bg-brand-600/10'
+                  : 'border-white/[0.08] bg-white/[0.02]'
+              }`}
+            >
+              <div>
+                <p className="text-sm font-semibold text-slate-100">Role active</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {editEnabled
+                    ? 'This role grants its permissions to assigned users.'
+                    : 'Disabled — assigned users will not get these permissions.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={editEnabled}
+                aria-label={editEnabled ? 'Disable role' : 'Enable role'}
+                onClick={() => setEditEnabled((v) => !v)}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+                  editEnabled ? 'bg-brand-600' : 'bg-white/15'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                    editEnabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <Field label="Display name">
+              <input
+                className={inputClass}
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder={roleLabel(editing.role)}
+              />
+            </Field>
+            <Field label="Description">
+              <textarea
+                className={inputClass}
+                rows={2}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </Field>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-300">Permissions</p>
+                <p className="text-xs text-slate-500">{perms.size} selected</p>
+              </div>
+              <div className="space-y-3">
+                {PERMISSION_MODULES.map((mod) => {
+                  const ids = mod.perms.map((p) => p.id);
+                  const allOn = ids.every((id) => perms.has(id));
+                  const someOn = ids.some((id) => perms.has(id));
+                  return (
+                    <div
+                      key={mod.module}
+                      className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-100">{mod.module}</p>
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-brand-400 hover:underline"
+                          onClick={() => toggleModule(ids, !allOn)}
+                        >
+                          {allOn ? 'Clear' : someOn ? 'Select all' : 'Select all'}
+                        </button>
+                      </div>
+                      <div className="grid gap-1.5 sm:grid-cols-2">
+                        {mod.perms.map((p) => {
+                          const on = perms.has(p.id);
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              role="switch"
+                              aria-checked={on}
+                              onClick={() => togglePerm(p.id)}
+                              className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition ${
+                                on
+                                  ? 'border-brand-500/40 bg-brand-600/10 text-slate-100'
+                                  : 'border-white/[0.06] bg-transparent text-slate-400 hover:bg-white/[0.03]'
+                              }`}
+                            >
+                              <span className="min-w-0 truncate font-medium">{p.label}</span>
+                              <span
+                                className={`relative h-5 w-9 shrink-0 rounded-full transition ${
+                                  on ? 'bg-brand-600' : 'bg-white/15'
+                                }`}
+                              >
+                                <span
+                                  className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                                    on ? 'translate-x-4' : 'translate-x-0'
+                                  }`}
+                                />
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-4">
+              <Button variant="ghost" onClick={resetRole} disabled={busy}>
+                {editing.isCustomized ? 'Reset to defaults' : 'Restore defaults'}
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => setEditing(null)} disabled={busy}>
+                  Cancel
+                </Button>
+                <Button onClick={save} disabled={busy}>
+                  {busy ? 'Saving…' : 'Save role'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -188,6 +535,7 @@ export function BroadcastsPanel({ isPlatform }: { isPlatform: boolean }) {
 
   async function load() {
     setLoading(true);
+    setError(null);
     try {
       const res = await api<{ broadcasts: Broadcast[] }>('/broadcasts');
       setItems(res.broadcasts);
@@ -204,6 +552,7 @@ export function BroadcastsPanel({ isPlatform }: { isPlatform: boolean }) {
   async function send() {
     if (!title.trim() || !bodyText.trim()) return;
     setBusy(true);
+    setError(null);
     try {
       await api('/broadcasts', {
         method: 'POST',
@@ -212,7 +561,9 @@ export function BroadcastsPanel({ isPlatform }: { isPlatform: boolean }) {
       setTitle('');
       setBodyText('');
       setShow(false);
-      load();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to send broadcast');
     } finally {
       setBusy(false);
     }
@@ -224,11 +575,11 @@ export function BroadcastsPanel({ isPlatform }: { isPlatform: boolean }) {
     load();
   }
 
-  if (loading) return <Loading />;
-  if (error) return <ErrorBox message={error} />;
+  if (loading) return <Loading variant="table" />;
 
   return (
     <div className="space-y-4">
+      {error && <ErrorBox message={error} />}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold">Broadcasts</h2>
@@ -278,12 +629,16 @@ export function BroadcastsPanel({ isPlatform }: { isPlatform: boolean }) {
             </Field>
             {!isPlatform && (
               <Field label="Audience">
-                <select className={inputClass} value={audience} onChange={(e) => setAudience(e.target.value)}>
-                  <option value="all">All members</option>
-                  <option value="fleet_manager">Fleet Managers</option>
-                  <option value="dispatcher">Dispatchers</option>
-                  <option value="driver">Drivers</option>
-                </select>
+                <Select
+                  value={audience}
+                  onChange={setAudience}
+                  options={[
+                    { value: 'all', label: 'All members' },
+                    { value: 'fleet_manager', label: 'Fleet Managers' },
+                    { value: 'dispatcher', label: 'Dispatchers' },
+                    { value: 'driver', label: 'Drivers' },
+                  ]}
+                />
               </Field>
             )}
             <div className="flex justify-end gap-2">
@@ -351,7 +706,7 @@ export function ContactPanel({ isPlatform }: { isPlatform: boolean }) {
     load();
   }
 
-  if (loading) return <Loading />;
+  if (loading) return <Loading variant="table" />;
   if (error) return <ErrorBox message={error} />;
 
   return (
@@ -455,7 +810,7 @@ export function AuditPanel() {
     })();
   }, []);
 
-  if (loading) return <Loading />;
+  if (loading) return <Loading variant="table" />;
   if (error) return <ErrorBox message={error} />;
 
   return (
@@ -489,522 +844,6 @@ export function AuditPanel() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Settings (Preferences / Profile / SMTP)                             */
-/* ------------------------------------------------------------------ */
-
-type SettingsTab = 'branding' | 'preferences' | 'profile' | 'smtp';
-
-export function SettingsPanel({
-  isPlatform,
-  user,
-  onUserUpdated,
-}: {
-  isPlatform: boolean;
-  user: AdminUser;
-  onUserUpdated: (u: AdminUser) => void;
-}) {
-  const [tab, setTab] = useState<SettingsTab>(isPlatform ? 'preferences' : 'branding');
-  const [settings, setSettings] = useState<ScopeSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await api<{ settings: ScopeSettings }>('/settings');
-      setSettings(res.settings);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => {
-    load();
-  }, []);
-
-  const tabs: { key: SettingsTab; label: string }[] = [
-    ...(!isPlatform ? [{ key: 'branding' as const, label: 'Company brand' }] : []),
-    { key: 'preferences', label: 'Preferences' },
-    { key: 'profile', label: 'Profile' },
-    { key: 'smtp', label: 'SMTP / Email' },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Settings</h2>
-        <p className="text-sm text-slate-400">
-          {isPlatform ? 'Platform-level configuration.' : 'Configuration for your company only.'}
-        </p>
-      </div>
-
-      <div className="flex gap-1 border-b border-white/[0.06]">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
-              tab === t.key
-                ? 'border-brand-600 text-brand-300'
-                : 'border-transparent text-slate-400 hover:text-slate-300'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <Loading />
-      ) : error ? (
-        <ErrorBox message={error} />
-      ) : (
-        <>
-          {tab === 'branding' && !isPlatform && (
-            <BrandingTab user={user} onUserUpdated={onUserUpdated} />
-          )}
-          {tab === 'preferences' && settings && (
-            <PreferencesTab settings={settings} onSaved={setSettings} />
-          )}
-          {tab === 'profile' && (
-            <ProfileTab isPlatform={isPlatform} user={user} onUserUpdated={onUserUpdated} />
-          )}
-          {tab === 'smtp' && settings && <SmtpTab settings={settings} onSaved={setSettings} />}
-        </>
-      )}
-    </div>
-  );
-}
-
-function BrandingTab({
-  user,
-  onUserUpdated,
-}: {
-  user: AdminUser;
-  onUserUpdated: (u: AdminUser) => void;
-}) {
-  const [name, setName] = useState(user.company?.name ?? '');
-  const [preview, setPreview] = useState(user.company?.logoUrl ?? null);
-  const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  if (!user.companyId || !user.company) {
-    return <ErrorBox message="No company linked to this account." />;
-  }
-
-  async function saveName() {
-    if (!user.companyId) return;
-    setBusy(true);
-    setSaved(false);
-    setError(null);
-    try {
-      const res = await api<{ company: NonNullable<AdminUser['company']> }>(
-        `/companies/${user.companyId}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ name: name.trim() }),
-        },
-      );
-      const updated: AdminUser = { ...user, company: res.company };
-      updateStoredUser(updated);
-      onUserUpdated(updated);
-      setSaved(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to save name');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onLogoPick(file: File | null) {
-    if (!file || !user.companyId) return;
-    setUploading(true);
-    setError(null);
-    setSaved(false);
-    try {
-      const token =
-        typeof window !== 'undefined' ? window.localStorage.getItem('cf_admin_access') : null;
-      const form = new FormData();
-      form.append('logo', file);
-      const res = await fetch(`/api/v1/companies/${user.companyId}/logo`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: form,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Upload failed');
-      const company = (data as { company: NonNullable<AdminUser['company']> }).company;
-      setPreview(company.logoUrl);
-      const updated: AdminUser = { ...user, company };
-      updateStoredUser(updated);
-      onUserUpdated(updated);
-      setSaved(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to upload logo');
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  return (
-    <Card className="max-w-3xl space-y-6 p-6">
-      {saved && <Notice message="Company brand updated. Sidebar, tab title, and emails will use it." />}
-      {error && <ErrorBox message={error} />}
-
-      <div>
-        <h3 className="font-semibold text-slate-100">Company brand</h3>
-        <p className="mt-1 text-sm text-slate-400">
-          Name and logo appear in your admin sidebar, browser tab, and outbound emails for your company.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-6">
-        <div className="flex h-24 w-40 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-brand-950/60 p-3">
-          {preview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt={name || 'Logo'} className="max-h-full max-w-full object-contain" />
-          ) : (
-            <span className="text-xs text-slate-500">No logo yet</span>
-          )}
-        </div>
-        <div className="space-y-2">
-          <label className="inline-flex cursor-pointer items-center rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500">
-            {uploading ? 'Uploading…' : 'Upload logo'}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => onLogoPick(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          <p className="text-xs text-slate-500">PNG, JPEG, WebP or SVG · max 2MB</p>
-        </div>
-      </div>
-
-      <Field label="Company display name">
-        <input
-          className={inputClass}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Northline Freight"
-        />
-      </Field>
-
-      <Button onClick={saveName} disabled={busy || !name.trim()}>
-        {busy ? 'Saving…' : 'Save company name'}
-      </Button>
-    </Card>
-  );
-}
-
-function PreferencesTab({
-  settings,
-  onSaved,
-}: {
-  settings: ScopeSettings;
-  onSaved: (s: ScopeSettings) => void;
-}) {
-  const [timezone, setTimezone] = useState(settings.timezone);
-  const [locale, setLocale] = useState(settings.locale);
-  const [theme, setTheme] = useState(settings.theme);
-  const [weeklyReport, setWeeklyReport] = useState(settings.weeklyReport);
-  const [itemsPerPage, setItemsPerPage] = useState(settings.itemsPerPage);
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  async function save() {
-    setBusy(true);
-    setSaved(false);
-    try {
-      const res = await api<{ settings: ScopeSettings }>('/settings', {
-        method: 'PATCH',
-        body: JSON.stringify({ timezone, locale, theme, weeklyReport, itemsPerPage: Number(itemsPerPage) }),
-      });
-      onSaved(res.settings);
-      setSaved(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card className="max-w-3xl space-y-5 p-6">
-      {saved && <Notice message="Preferences saved." />}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Timezone">
-          <input className={inputClass} value={timezone} onChange={(e) => setTimezone(e.target.value)} />
-        </Field>
-        <Field label="Language">
-          <select className={inputClass} value={locale} onChange={(e) => setLocale(e.target.value)}>
-            <option value="en">English</option>
-            <option value="ur">Urdu</option>
-            <option value="ar">Arabic</option>
-            <option value="es">Spanish</option>
-          </select>
-        </Field>
-        <Field label="Default theme">
-          <select className={inputClass} value={theme} onChange={(e) => setTheme(e.target.value as never)}>
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </Field>
-        <Field label="Rows per page">
-          <input
-            type="number"
-            className={inputClass}
-            value={itemsPerPage}
-            onChange={(e) => setItemsPerPage(Number(e.target.value))}
-          />
-        </Field>
-      </div>
-      <label className="flex items-center gap-2 text-sm text-slate-300">
-        <input type="checkbox" checked={weeklyReport} onChange={(e) => setWeeklyReport(e.target.checked)} />
-        Email me a weekly summary report
-      </label>
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={busy}>
-          {busy ? 'Saving…' : 'Save preferences'}
-        </Button>
-      </div>
-    </Card>
-  );
-}
-
-function ProfileTab({
-  isPlatform,
-  user,
-  onUserUpdated,
-}: {
-  isPlatform: boolean;
-  user: AdminUser;
-  onUserUpdated: (u: AdminUser) => void;
-}) {
-  const [name, setName] = useState(user.name);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Company profile (owner only)
-  const [companyName, setCompanyName] = useState(user.company?.name ?? '');
-  const [coBusy, setCoBusy] = useState(false);
-  const [coSaved, setCoSaved] = useState(false);
-
-  async function saveAccount() {
-    setBusy(true);
-    setSaved(false);
-    setError(null);
-    try {
-      const payload: Record<string, unknown> = { name };
-      if (newPassword) {
-        payload.currentPassword = currentPassword;
-        payload.newPassword = newPassword;
-      }
-      const res = await api<{ user: AdminUser }>('/account', {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      });
-      if (res.user) {
-        updateStoredUser(res.user);
-        onUserUpdated(res.user);
-      }
-      setCurrentPassword('');
-      setNewPassword('');
-      setSaved(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to save');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveCompany() {
-    if (!user.companyId) return;
-    setCoBusy(true);
-    setCoSaved(false);
-    try {
-      const res = await api<{ company: NonNullable<AdminUser['company']> }>(
-        `/companies/${user.companyId}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ name: companyName.trim() }),
-        },
-      );
-      const updated: AdminUser = {
-        ...user,
-        company: res.company,
-      };
-      updateStoredUser(updated);
-      onUserUpdated(updated);
-      setCoSaved(true);
-    } finally {
-      setCoBusy(false);
-    }
-  }
-
-  const twoCol = !isPlatform && user.company;
-
-  return (
-    <div className={`grid gap-6 ${twoCol ? 'lg:grid-cols-2' : 'max-w-2xl'}`}>
-      <Card className="space-y-4 p-6">
-        <h3 className="font-semibold text-slate-100">My account</h3>
-        {saved && <Notice message="Account updated." />}
-        {error && <ErrorBox message={error} />}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Full name">
-            <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <Field label="Email">
-            <input className={inputClass + ' opacity-60'} value={user.email} disabled />
-          </Field>
-        </div>
-        <div className="border-t border-white/[0.04] pt-4">
-          <p className="mb-2 text-sm font-medium text-slate-300">Change password</p>
-          <div className="space-y-3">
-            <input
-              className={inputClass}
-              type="password"
-              placeholder="Current password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-            />
-            <input
-              className={inputClass}
-              type="password"
-              placeholder="New password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <Button onClick={saveAccount} disabled={busy}>
-            {busy ? 'Saving…' : 'Save account'}
-          </Button>
-        </div>
-      </Card>
-
-      {!isPlatform && user.company && (
-        <Card className="space-y-4 p-6">
-          <h3 className="font-semibold text-slate-100">Company profile</h3>
-          {coSaved && <Notice message="Company profile saved." />}
-          <Field label="Company name">
-            <input className={inputClass} value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-          </Field>
-          <div>
-            <span className="mb-1 block text-sm font-medium text-slate-300">Status</span>
-            <Badge tone={user.company.status === 'active' ? 'green' : 'red'}>{user.company.status}</Badge>
-            <p className="mt-1 text-xs text-slate-400">Only the platform admin can change status.</p>
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={saveCompany} disabled={coBusy}>
-              {coBusy ? 'Saving…' : 'Save company'}
-            </Button>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-function SmtpTab({
-  settings,
-  onSaved,
-}: {
-  settings: ScopeSettings;
-  onSaved: (s: ScopeSettings) => void;
-}) {
-  const [host, setHost] = useState(settings.smtpHost ?? '');
-  const [port, setPort] = useState(settings.smtpPort ?? 587);
-  const [secure, setSecure] = useState(settings.smtpSecure);
-  const [smtpUser, setSmtpUser] = useState(settings.smtpUser ?? '');
-  const [password, setPassword] = useState('');
-  const [from, setFrom] = useState(settings.smtpFrom ?? '');
-  const [fromName, setFromName] = useState(settings.smtpFromName ?? '');
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  async function save() {
-    setBusy(true);
-    setSaved(false);
-    try {
-      const payload: Record<string, unknown> = {
-        smtpHost: host,
-        smtpPort: Number(port),
-        smtpSecure: secure,
-        smtpUser,
-        smtpFrom: from,
-        smtpFromName: fromName,
-      };
-      if (password) payload.smtpPassword = password;
-      const res = await api<{ settings: ScopeSettings }>('/settings', {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      });
-      onSaved(res.settings);
-      setPassword('');
-      setSaved(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card className="max-w-3xl space-y-4 p-6">
-      {saved && <Notice message="SMTP settings saved." />}
-      <p className="text-sm text-slate-400">
-        Configure the mail server used to send emails (invitations, password resets, reports).
-      </p>
-      <Field label="SMTP host">
-        <input className={inputClass} value={host} onChange={(e) => setHost(e.target.value)} placeholder="smtp.gmail.com" />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Port">
-          <input type="number" className={inputClass} value={port} onChange={(e) => setPort(Number(e.target.value))} />
-        </Field>
-        <div className="flex items-end pb-2">
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={secure} onChange={(e) => setSecure(e.target.checked)} />
-            Use TLS/SSL
-          </label>
-        </div>
-      </div>
-      <Field label="Username">
-        <input className={inputClass} value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
-      </Field>
-      <Field label={settings.smtpPasswordSet ? 'Password (leave blank to keep current)' : 'Password'}>
-        <input
-          type="password"
-          className={inputClass}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder={settings.smtpPasswordSet ? '••••••••' : ''}
-        />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="From email">
-          <input className={inputClass} value={from} onChange={(e) => setFrom(e.target.value)} />
-        </Field>
-        <Field label="From name">
-          <input className={inputClass} value={fromName} onChange={(e) => setFromName(e.target.value)} />
-        </Field>
-      </div>
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={busy}>
-          {busy ? 'Saving…' : 'Save SMTP settings'}
-        </Button>
-      </div>
-    </Card>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Reports                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -1031,7 +870,7 @@ export function PlatformReports() {
     })();
   }, []);
 
-  if (loading) return <Loading />;
+  if (loading) return <Loading variant="dashboard" />;
   if (error) return <ErrorBox message={error} />;
 
   const byRole: Record<string, number> = {};
@@ -1109,7 +948,7 @@ export function CompanyReports() {
     })();
   }, []);
 
-  if (loading) return <Loading />;
+  if (loading) return <Loading variant="dashboard" />;
   if (error) return <ErrorBox message={error} />;
   if (!data) return <EmptyState message="No data to report yet." />;
 
