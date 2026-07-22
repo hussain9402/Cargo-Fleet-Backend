@@ -25,7 +25,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { companyId, userId, roles } = guard.context;
   if (!can(roles, 'trips:manage') && !can(roles, 'trips:drive')) {
-    return errorResponse('Forbidden', 403);
+    return errorResponse("You don't have permission to perform this action.", 403);
   }
   if (!companyId) return errorResponse('No company context', 400);
 
@@ -64,7 +64,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if (hasFields && !can(roles, 'trips:manage')) {
-    return errorResponse('Forbidden', 403);
+    return errorResponse("You don't have permission to perform this action.", 403);
   }
 
   if (hasStatus && (!body.status || !VALID.includes(body.status as Trip['status']))) {

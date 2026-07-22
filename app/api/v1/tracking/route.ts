@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       'shipments:track',
     ]))
   ) {
-    return errorResponse('Forbidden', 403);
+    return errorResponse("You don't have permission to perform this action.", 403);
   }
   if (!companyId) return jsonResponse({ locations: [] });
 

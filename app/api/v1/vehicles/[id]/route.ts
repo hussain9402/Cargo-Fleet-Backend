@@ -32,7 +32,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { companyId, userId, roles } = guard.context;
   if (!can(roles, 'vehicles:manage') && !can(roles, 'vehicles:maintenance')) {
-    return errorResponse('Forbidden', 403);
+    return errorResponse("You don't have permission to perform this action.", 403);
   }
   if (!companyId) return errorResponse('No company context', 400);
 

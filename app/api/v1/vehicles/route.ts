@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const { companyId, userId, roles } = guard.context;
   if (!canAny(roles, ['vehicles:view', 'vehicles:manage', 'tracking:view', 'tracking:own', 'vehicles:maintenance'])) {
-    return errorResponse('Forbidden', 403);
+    return errorResponse("You don't have permission to perform this action.", 403);
   }
   if (!companyId) return jsonResponse({ vehicles: [] });
 

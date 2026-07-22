@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const { companyId, userId, roles } = guard.context;
   // Drivers may read their own profile via tracking:own / trips:drive
   if (!canAny(roles, ['drivers:view', 'drivers:manage', 'tracking:own', 'trips:drive'])) {
-    return errorResponse('Forbidden', 403);
+    return errorResponse("You don't have permission to perform this action.", 403);
   }
   if (!companyId) return jsonResponse({ drivers: [] });
 

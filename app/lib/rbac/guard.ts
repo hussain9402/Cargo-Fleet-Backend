@@ -35,12 +35,12 @@ export async function requirePermission(
 
   const payload = getAuthPayload(request);
   if (!payload || typeof payload.sub !== 'string') {
-    return { ok: false, response: errorResponse('Unauthorized', 401) };
+    return { ok: false, response: errorResponse('Please sign in to continue.', 401) };
   }
 
   const user = await findUserById(payload.sub);
   if (!user) {
-    return { ok: false, response: errorResponse('Unauthorized', 401) };
+    return { ok: false, response: errorResponse('Please sign in to continue.', 401) };
   }
 
   const roles = await getUserRoles(user.id);
@@ -49,7 +49,10 @@ export async function requirePermission(
   const scope = platform ? PLATFORM_ROLE_SCOPE : user.company_id;
 
   if (permission && !(await rolesCan(scope, roles, permission))) {
-    return { ok: false, response: errorResponse('Forbidden', 403) };
+    return {
+      ok: false,
+      response: errorResponse("You don't have permission to perform this action.", 403),
+    };
   }
 
   return {

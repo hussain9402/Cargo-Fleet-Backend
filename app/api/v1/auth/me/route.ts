@@ -14,12 +14,12 @@ export async function GET(request: NextRequest) {
     await ensureAuthTables();
     const payload = getAuthPayload(request);
     if (!payload) {
-      return errorResponse('Unauthorized', 401);
+      return errorResponse('Please sign in to continue.', 401);
     }
 
     const user = await findUserById(payload.sub as string);
     if (!user) {
-      return errorResponse('Unauthorized', 401);
+      return errorResponse('Please sign in to continue.', 401);
     }
 
     return jsonResponse({ user: await toAuthUser(user) });
@@ -34,7 +34,7 @@ export async function PATCH(request: NextRequest) {
     await ensureAuthTables();
     const payload = getAuthPayload(request);
     if (!payload) {
-      return errorResponse('Unauthorized', 401);
+      return errorResponse('Please sign in to continue.', 401);
     }
 
     const body = await parseJsonBody(request);
